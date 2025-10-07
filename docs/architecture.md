@@ -87,6 +87,7 @@ This unified approach combines what would traditionally be separate backend and 
 | 2025-01-07 | 1.0 | Added Accessibility Implementation section | Winston (Architect) |
 | 2025-01-07 | 1.0 | Added Frontend API Client Configuration section | Winston (Architect) |
 | 2025-01-07 | 1.0 | Completed Checklist Results Report | Winston (Architect) |
+| 2025-10-07 | 1.0 | Updated all Python dependencies to latest versions | James (Developer) |
 
 ---
 
@@ -240,12 +241,12 @@ This is the DEFINITIVE technology selection for the entire project. All developm
 | Category | Technology | Version | Purpose | Rationale |
 |----------|-----------|---------|---------|-----------|
 | **Backend Language** | Python | 3.11.7 | Primary development language | Stable, excellent library ecosystem, type hints, matches PRD requirement |
-| **Backend Framework** | FastAPI | 0.109.0 | Web application framework | Modern, automatic threading for sync routes, excellent performance |
+| **Backend Framework** | FastAPI | 0.118.0 | Web application framework | Modern, automatic threading for sync routes, excellent performance |
 | **Package Manager** | uv | 0.1.11 | Python dependency management | Fast, modern alternative to pip as specified in PRD |
-| **ASGI Server** | Uvicorn | 0.27.0 | Python application server | Standard for FastAPI, handles threading automatically |
-| **HTTP Client** | requests | 2.31.0 | YouTube API requests | Mature, synchronous, simple to use |
-| **YouTube API Client** | google-api-python-client | 2.113.0 | YouTube Data API v3 | Official Google client, naturally synchronous |
-| **Template Engine** | Jinja2 | 3.1.3 | Server-side HTML rendering | Included with FastAPI, simple syntax, no build step needed |
+| **ASGI Server** | Uvicorn | 0.37.0 | Python application server | Standard for FastAPI, handles threading automatically |
+| **HTTP Client** | requests | 2.32.5 | YouTube API requests | Mature, synchronous, simple to use |
+| **YouTube API Client** | google-api-python-client | 2.184.0 | YouTube Data API v3 | Official Google client, naturally synchronous |
+| **Template Engine** | Jinja2 | 3.1.6 | Server-side HTML rendering | Included with FastAPI, simple syntax, no build step needed |
 | **Frontend Build Tool** | Vite | 5.0.11 | Dev server & production bundling | Zero-config, instant start, optimizes assets |
 | **Frontend Language** | Vanilla JavaScript | ES2020+ | Client-side interactivity | No framework overhead, ES6 modules via Vite |
 | **CSS Approach** | Pure CSS | CSS3 | Styling | No build step needed, custom properties for theming |
@@ -257,11 +258,11 @@ This is the DEFINITIVE technology selection for the entire project. All developm
 | **SSL Certificates** | Let's Encrypt (Certbot) | 2.8.0 | HTTPS encryption | Free SSL, automatic renewal |
 | **Frontend Testing** | Vitest | 1.1.0 | Frontend unit tests | Vite-native, fast, better DX than Jest |
 | **DOM Testing** | happy-dom | 12.10.3 | Lightweight DOM for tests | 2x faster than jsdom |
-| **Test Mocking** | pytest-mock | 3.12.0 | Mock external dependencies | Clean pytest integration |
-| **Coverage Tool** | pytest-cov | 4.1.0 | Code coverage measurement | Standard pytest coverage plugin |
+| **Test Mocking** | pytest-mock | 3.15.1 | Mock external dependencies | Clean pytest integration |
+| **Coverage Tool** | pytest-cov | 7.0.0 | Code coverage measurement | Standard pytest coverage plugin |
 | **E2E Testing** | Playwright | 1.40.0 | Critical user journeys | Cross-browser, reliable, visual testing |
-| **Performance Testing** | pytest-benchmark | 4.0.0 | Backend performance tests | Accurate benchmarking with statistics |
-| **Testing Framework** | pytest | 8.0.0 | Unit & integration tests | Standard Python testing |
+| **Performance Testing** | pytest-benchmark | 5.1.0 | Backend performance tests | Accurate benchmarking with statistics |
+| **Testing Framework** | pytest | 8.4.2 | Unit & integration tests | Standard Python testing |
 
 ### Python Requirements (pyproject.toml)
 
@@ -272,25 +273,25 @@ version = "1.0.0"
 requires-python = ">=3.11,<3.12"
 
 dependencies = [
-    "fastapi==0.109.0",
-    "uvicorn[standard]==0.27.0",
-    "jinja2==3.1.3",
-    "google-api-python-client==2.113.0",
-    "requests==2.31.0",
+    "fastapi==0.118.0",
+    "uvicorn[standard]==0.37.0",
+    "jinja2==3.1.6",
+    "google-api-python-client==2.184.0",
+    "requests==2.32.5",
     "passlib[bcrypt]==1.7.4",
-    "python-multipart==0.0.6",
-    "isodate==0.6.1",
+    "python-multipart==0.0.20",
+    "isodate==0.7.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest==8.0.0",
-    "pytest-mock==3.12.0",
-    "pytest-cov==4.1.0",
-    "pytest-benchmark==4.0.0",
-    "responses==0.24.1",
-    "black==24.1.0",
-    "ruff==0.1.14",
+    "pytest==8.4.2",
+    "pytest-mock==3.15.1",
+    "pytest-cov==7.0.0",
+    "pytest-benchmark==5.1.0",
+    "responses==0.25.8",
+    "black==25.9.0",
+    "ruff==0.14.0",
 ]
 ```
 
