@@ -17,9 +17,9 @@ so that I have a working foundation for adding features.
 4. Static file serving configured for CSS, JavaScript, and images
 5. Project README with setup instructions (see AC 12 for minimum content)
 6. Git repository initialized with .gitignore for Python
-7. Python dependencies managed with uv (pyproject.toml with FastAPI, uvicorn, feedparser, google-api-python-client)
+7. Python dependencies managed with uv (pyproject.toml with FastAPI, uvicorn, google-api-python-client)
 8. **Database schema initialized using backend/db/init_db.py**
-9. **Admin password set via environment variable during initialization**
+9. **Admin password set via command-line argument during database initialization**
 10. **.env.example file created with all required environment variables:**
     - DATABASE_PATH=/opt/youtube-viewer/data/app.db
     - YOUTUBE_API_KEY=your_api_key_here
