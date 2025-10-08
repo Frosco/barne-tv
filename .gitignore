@@ -37,8 +37,11 @@ uv.lock
 .pytest_cache/
 .coverage
 htmlcov/
+coverage/
 .tox/
 .nox/
+.benchmarks/
+.vite/
 
 # IDEs
 .vscode/
