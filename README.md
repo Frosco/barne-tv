@@ -120,16 +120,59 @@ curl http://localhost:8000/health
 
 ## Running Tests
 
+### Backend Tests (pytest)
+
 ```bash
-# Run all tests with verbose output
+# Run all backend tests with verbose output
 uv run pytest tests/backend/ -v
 
 # Run tests with coverage report
-uv run pytest tests/backend/ -v --cov=backend --cov-report=html
+uv run pytest tests/backend/ --cov=backend --cov-report=html
 
-# View coverage report
-open htmlcov/index.html
+# Run TIER 1 safety tests only
+uv run pytest -m tier1 -v
+
+# Run security tests only
+uv run pytest -m security -v
+
+# Run specific test file
+uv run pytest tests/backend/test_health.py -v
+
+# View HTML coverage report
+open htmlcov/index.html  # macOS
+xdg-open htmlcov/index.html  # Linux
 ```
+
+### Frontend Tests (vitest)
+
+```bash
+# Run all frontend tests
+cd frontend && npm test
+
+# Run tests in watch mode (auto-rerun on changes)
+cd frontend && npm test -- --watch
+
+# Run tests with coverage report
+cd frontend && npm run test:coverage
+
+# View HTML coverage report
+cd frontend && open coverage/index.html  # macOS
+cd frontend && xdg-open coverage/index.html  # Linux
+```
+
+### Test Markers
+
+The following pytest markers are configured:
+- `tier1` - TIER 1 child safety tests (must always pass)
+- `security` - Security-specific tests
+- `performance` - Performance benchmark tests
+
+Example: `pytest -m "tier1 or security" -v`
+
+### Coverage Thresholds
+
+- **Backend**: 85% overall, 100% for safety-critical code
+- **Frontend**: 70% acceptable for UI components
 
 ## Development Workflow
 

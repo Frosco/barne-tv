@@ -30,7 +30,7 @@ This is the DEFINITIVE technology selection for the entire project. All developm
 | **HTTP Client** | requests | 2.32.5 | YouTube API requests | Mature, synchronous, simple to use |
 | **YouTube API Client** | google-api-python-client | 2.184.0 | YouTube Data API v3 | Official Google client, naturally synchronous |
 | **Template Engine** | Jinja2 | 3.1.6 | Server-side HTML rendering | Included with FastAPI, simple syntax, no build step needed |
-| **Frontend Build Tool** | Vite | 5.0.11 | Dev server & production bundling | Zero-config, instant start, optimizes assets |
+| **Frontend Build Tool** | Vite | 7.1.9 | Dev server & production bundling | Zero-config, instant start, optimizes assets |
 | **Frontend Language** | Vanilla JavaScript | ES2020+ | Client-side interactivity | No framework overhead, ES6 modules via Vite |
 | **CSS Approach** | Pure CSS | CSS3 | Styling | No build step needed, custom properties for theming |
 | **Database** | SQLite | 3.45.0 | Data persistence | Zero-config, file-based, perfect for single-instance |
@@ -39,13 +39,16 @@ This is the DEFINITIVE technology selection for the entire project. All developm
 | **Process Manager** | systemd | System default | Service supervision | Built into Linux, automatic restarts |
 | **Password Hashing** | passlib[bcrypt] | 1.7.4 | Secure password storage | Industry standard, bcrypt algorithm |
 | **SSL Certificates** | Let's Encrypt (Certbot) | 2.8.0 | HTTPS encryption | Free SSL, automatic renewal |
-| **Frontend Testing** | Vitest | 1.1.0 | Frontend unit tests | Vite-native, fast, better DX than Jest |
-| **DOM Testing** | happy-dom | 12.10.3 | Lightweight DOM for tests | 2x faster than jsdom |
+| **Frontend Testing** | Vitest | 3.2.4 | Frontend unit tests | Vite-native, fast, better DX than Jest |
+| **DOM Testing** | happy-dom | 19.0.2 | Lightweight DOM for tests | 2x faster than jsdom |
 | **Test Mocking** | pytest-mock | 3.15.1 | Mock external dependencies | Clean pytest integration |
-| **Coverage Tool** | pytest-cov | 7.0.0 | Code coverage measurement | Standard pytest coverage plugin |
+| **Coverage Tool (Backend)** | pytest-cov | 7.0.0 | Backend code coverage | Standard pytest coverage plugin |
+| **Coverage Tool (Frontend)** | @vitest/coverage-v8 | 3.2.4 | Frontend code coverage | Official Vitest coverage plugin |
 | **E2E Testing** | Playwright | 1.40.0 | Critical user journeys | Cross-browser, reliable, visual testing |
+| **Linter (Frontend)** | ESLint | 9.37.0 | Frontend code linting | Catch errors, enforce style |
 | **Performance Testing** | pytest-benchmark | 5.1.0 | Backend performance tests | Accurate benchmarking with statistics |
 | **Testing Framework** | pytest | 8.4.2 | Unit & integration tests | Standard Python testing |
+| **HTTP Testing** | httpx | 0.27.0 | FastAPI TestClient dependency | Required by TestClient for API testing |
 
 ## Python Requirements (pyproject.toml)
 
@@ -73,6 +76,7 @@ dev = [
     "pytest-cov==7.0.0",
     "pytest-benchmark==5.1.0",
     "responses==0.25.8",
+    "httpx==0.27.0",
     "black==25.9.0",
     "ruff==0.14.0",
 ]
@@ -97,11 +101,12 @@ dev = [
     "lint:fix": "eslint frontend/src/**/*.js --fix"
   },
   "devDependencies": {
-    "vite": "^5.0.11",
-    "vitest": "^1.1.0",
-    "happy-dom": "^12.10.3",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4",
+    "happy-dom": "^19.0.2",
+    "@vitest/coverage-v8": "^3.2.4",
     "@playwright/test": "^1.40.0",
-    "eslint": "^8.56.0",
+    "eslint": "^9.37.0",
     "prettier": "^3.1.1"
   }
 }

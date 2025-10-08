@@ -39,12 +39,12 @@
 
 ### Unit Tests - Backend
 
-**Framework:** pytest 8.0.0  
-**Mocking:** pytest-mock 3.12.0  
-**Coverage:** pytest-cov 4.1.0  
+**Framework:** pytest 8.4.2
+**Mocking:** pytest-mock 3.15.1
+**Coverage:** pytest-cov 7.0.0
 **Location:** `tests/backend/` mirroring `backend/` structure
 
-**File Convention:**
+**Backend File Convention:**
 ```
 backend/services/viewing_session.py
   → tests/backend/services/test_viewing_session.py
@@ -52,6 +52,17 @@ backend/services/viewing_session.py
 backend/db/queries.py
   → tests/backend/db/test_queries.py
 ```
+
+**Frontend File Convention:**
+```
+frontend/src/child/grid.js
+  → frontend/src/child/grid.test.js
+
+frontend/src/admin/channels.js
+  → frontend/src/admin/channels.test.js
+```
+
+**Note:** Frontend tests are collocated with source files (not in separate `tests/frontend/` directory) to satisfy vitest's ES module resolution requirements.
 
 **Test Function Naming:**
 ```python
@@ -349,14 +360,16 @@ def test_should_interrupt_video_allows_short_video(test_db):
 
 ### Unit Tests - Frontend
 
-**Framework:** Vitest 1.1.0  
-**DOM Testing:** happy-dom 12.10.3  
-**Location:** `tests/frontend/` mirroring `frontend/src/`
+**Framework:** Vitest 3.2.4
+**DOM Testing:** happy-dom 19.0.2
+**Location:** `frontend/src/` (collocated with source files)
+
+**Rationale for Collocation:** Vitest requires tests to be in the same directory tree as source files for proper ES module resolution. This follows vitest best practices and allows clean relative imports without path resolution issues.
 
 ```javascript
-// tests/frontend/child/grid.test.js
+// frontend/src/child/grid.test.js
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderGrid } from '../../../frontend/src/child/grid.js';
+import { renderGrid } from './grid.js';
 
 describe('renderGrid', () => {
   beforeEach(() => {

@@ -23,21 +23,29 @@ safe-youtube-viewer/
 │   ├── logging.conf           # Logging configuration
 │   └── __init__.py
 ├── frontend/                   # Vite + Vanilla JS frontend
-│   ├── src/                   # Source files
+│   ├── src/                   # Source files (tests collocated)
 │   │   ├── child/             # Child interface logic
 │   │   │   ├── grid.js           # Video grid rendering
+│   │   │   ├── grid.test.js      # Grid unit tests
 │   │   │   ├── player.js         # YouTube IFrame integration
-│   │   │   └── limit-tracker.js  # Time limit monitoring
+│   │   │   ├── player.test.js    # Player unit tests
+│   │   │   ├── limit-tracker.js  # Time limit monitoring
+│   │   │   └── limit-tracker.test.js  # Limit tracker tests
 │   │   ├── admin/             # Admin interface logic
 │   │   │   ├── channels.js       # Channel management
+│   │   │   ├── channels.test.js  # Channels tests
 │   │   │   ├── history.js        # Watch history view
-│   │   │   └── settings.js       # Settings management
+│   │   │   ├── settings.js       # Settings management
+│   │   │   └── settings.test.js  # Settings tests
 │   │   ├── shared/            # Shared utilities
 │   │   │   ├── api.js            # API client
-│   │   │   └── state.js          # State management
+│   │   │   ├── api.test.js       # API client tests
+│   │   │   ├── state.js          # State management
+│   │   │   └── state.test.js     # State tests
 │   │   ├── child.js           # Child interface entry point
 │   │   ├── admin.js           # Admin interface entry point
-│   │   └── main.css           # Global styles
+│   │   ├── main.css           # Global styles
+│   │   └── sample.test.js     # Test infrastructure verification
 │   ├── public/                # Static assets
 │   │   ├── images/            # Mascot images, icons
 │   │   │   ├── mascot-happy.svg
@@ -98,18 +106,6 @@ safe-youtube-viewer/
 │   │   ├── test_routes.py
 │   │   ├── test_auth.py
 │   │   └── conftest.py        # Pytest fixtures
-│   ├── frontend/              # Frontend unit tests
-│   │   ├── child/
-│   │   │   ├── grid.test.js
-│   │   │   ├── player.test.js
-│   │   │   └── limit-tracker.test.js
-│   │   ├── admin/
-│   │   │   ├── channels.test.js
-│   │   │   └── settings.test.js
-│   │   ├── shared/
-│   │   │   ├── api.test.js
-│   │   │   └── state.test.js
-│   │   └── setup.js           # Vitest setup
 │   ├── integration/           # Integration tests
 │   │   ├── test_api_integration.py
 │   │   └── conftest.py
@@ -152,7 +148,9 @@ safe-youtube-viewer/
 **Key Decisions:**
 - No `models/` directory - using dict-based data passing (Python dataclasses if needed)
 - Auth logic in `auth.py` module, not a separate service
-- Tests mirror source structure with additional integration and e2e layers
+- Backend tests mirror source structure in `tests/backend/` directory
+- **Frontend tests collocated** with source files in `frontend/src/` for vitest module resolution (vitest best practice)
+- Additional integration and e2e test layers in `tests/integration/` and `tests/e2e/`
 - `pyproject.toml` for Python dependencies (uv manages environment)
 - Frontend dependencies in separate `package.json`
 - `static/` directory is build output only (in .gitignore)

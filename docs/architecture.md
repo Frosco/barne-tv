@@ -88,6 +88,7 @@ This unified approach combines what would traditionally be separate backend and 
 | 2025-01-07 | 1.0 | Added Frontend API Client Configuration section | Winston (Architect) |
 | 2025-01-07 | 1.0 | Completed Checklist Results Report | Winston (Architect) |
 | 2025-10-07 | 1.0 | Updated all Python dependencies to latest versions | James (Developer) |
+| 2025-10-08 | 1.0 | Updated frontend dependencies (Vite 7.1.9, Vitest 3.2.4, happy-dom 19.0.2, ESLint 9.37.0) | Winston (Architect) |
 
 ---
 
@@ -247,7 +248,7 @@ This is the DEFINITIVE technology selection for the entire project. All developm
 | **HTTP Client** | requests | 2.32.5 | YouTube API requests | Mature, synchronous, simple to use |
 | **YouTube API Client** | google-api-python-client | 2.184.0 | YouTube Data API v3 | Official Google client, naturally synchronous |
 | **Template Engine** | Jinja2 | 3.1.6 | Server-side HTML rendering | Included with FastAPI, simple syntax, no build step needed |
-| **Frontend Build Tool** | Vite | 5.0.11 | Dev server & production bundling | Zero-config, instant start, optimizes assets |
+| **Frontend Build Tool** | Vite | 7.1.9 | Dev server & production bundling | Zero-config, instant start, optimizes assets |
 | **Frontend Language** | Vanilla JavaScript | ES2020+ | Client-side interactivity | No framework overhead, ES6 modules via Vite |
 | **CSS Approach** | Pure CSS | CSS3 | Styling | No build step needed, custom properties for theming |
 | **Database** | SQLite | 3.45.0 | Data persistence | Zero-config, file-based, perfect for single-instance |
@@ -256,13 +257,16 @@ This is the DEFINITIVE technology selection for the entire project. All developm
 | **Process Manager** | systemd | System default | Service supervision | Built into Linux, automatic restarts |
 | **Password Hashing** | passlib[bcrypt] | 1.7.4 | Secure password storage | Industry standard, bcrypt algorithm |
 | **SSL Certificates** | Let's Encrypt (Certbot) | 2.8.0 | HTTPS encryption | Free SSL, automatic renewal |
-| **Frontend Testing** | Vitest | 1.1.0 | Frontend unit tests | Vite-native, fast, better DX than Jest |
-| **DOM Testing** | happy-dom | 12.10.3 | Lightweight DOM for tests | 2x faster than jsdom |
+| **Frontend Testing** | Vitest | 3.2.4 | Frontend unit tests | Vite-native, fast, better DX than Jest |
+| **DOM Testing** | happy-dom | 19.0.2 | Lightweight DOM for tests | 2x faster than jsdom |
 | **Test Mocking** | pytest-mock | 3.15.1 | Mock external dependencies | Clean pytest integration |
-| **Coverage Tool** | pytest-cov | 7.0.0 | Code coverage measurement | Standard pytest coverage plugin |
+| **Coverage Tool (Backend)** | pytest-cov | 7.0.0 | Backend code coverage | Standard pytest coverage plugin |
+| **Coverage Tool (Frontend)** | @vitest/coverage-v8 | 3.2.4 | Frontend code coverage | Official Vitest coverage plugin |
 | **E2E Testing** | Playwright | 1.40.0 | Critical user journeys | Cross-browser, reliable, visual testing |
+| **Linter (Frontend)** | ESLint | 9.37.0 | Frontend code linting | Catch errors, enforce style |
 | **Performance Testing** | pytest-benchmark | 5.1.0 | Backend performance tests | Accurate benchmarking with statistics |
 | **Testing Framework** | pytest | 8.4.2 | Unit & integration tests | Standard Python testing |
+| **HTTP Testing** | httpx | 0.27.0 | FastAPI TestClient dependency | Required by TestClient for API testing |
 
 ### Python Requirements (pyproject.toml)
 
@@ -290,6 +294,7 @@ dev = [
     "pytest-cov==7.0.0",
     "pytest-benchmark==5.1.0",
     "responses==0.25.8",
+    "httpx==0.27.0",
     "black==25.9.0",
     "ruff==0.14.0",
 ]
@@ -314,11 +319,12 @@ dev = [
     "lint:fix": "eslint frontend/src/**/*.js --fix"
   },
   "devDependencies": {
-    "vite": "^5.0.11",
-    "vitest": "^1.1.0",
-    "happy-dom": "^12.10.3",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4",
+    "happy-dom": "^19.0.2",
+    "@vitest/coverage-v8": "^3.2.4",
     "@playwright/test": "^1.40.0",
-    "eslint": "^8.56.0",
+    "eslint": "^9.37.0",
     "prettier": "^3.1.1"
   }
 }
@@ -3002,21 +3008,29 @@ safe-youtube-viewer/
 │   ├── logging.conf           # Logging configuration
 │   └── __init__.py
 ├── frontend/                   # Vite + Vanilla JS frontend
-│   ├── src/                   # Source files
+│   ├── src/                   # Source files (tests collocated)
 │   │   ├── child/             # Child interface logic
 │   │   │   ├── grid.js           # Video grid rendering
+│   │   │   ├── grid.test.js      # Grid unit tests
 │   │   │   ├── player.js         # YouTube IFrame integration
-│   │   │   └── limit-tracker.js  # Time limit monitoring
+│   │   │   ├── player.test.js    # Player unit tests
+│   │   │   ├── limit-tracker.js  # Time limit monitoring
+│   │   │   └── limit-tracker.test.js  # Limit tracker tests
 │   │   ├── admin/             # Admin interface logic
 │   │   │   ├── channels.js       # Channel management
+│   │   │   ├── channels.test.js  # Channels tests
 │   │   │   ├── history.js        # Watch history view
-│   │   │   └── settings.js       # Settings management
+│   │   │   ├── settings.js       # Settings management
+│   │   │   └── settings.test.js  # Settings tests
 │   │   ├── shared/            # Shared utilities
 │   │   │   ├── api.js            # API client
-│   │   │   └── state.js          # State management
+│   │   │   ├── api.test.js       # API client tests
+│   │   │   ├── state.js          # State management
+│   │   │   └── state.test.js     # State tests
 │   │   ├── child.js           # Child interface entry point
 │   │   ├── admin.js           # Admin interface entry point
-│   │   └── main.css           # Global styles
+│   │   ├── main.css           # Global styles
+│   │   └── sample.test.js     # Test infrastructure verification
 │   ├── public/                # Static assets
 │   │   ├── images/            # Mascot images, icons
 │   │   │   ├── mascot-happy.svg
@@ -3077,18 +3091,6 @@ safe-youtube-viewer/
 │   │   ├── test_routes.py
 │   │   ├── test_auth.py
 │   │   └── conftest.py        # Pytest fixtures
-│   ├── frontend/              # Frontend unit tests
-│   │   ├── child/
-│   │   │   ├── grid.test.js
-│   │   │   ├── player.test.js
-│   │   │   └── limit-tracker.test.js
-│   │   ├── admin/
-│   │   │   ├── channels.test.js
-│   │   │   └── settings.test.js
-│   │   ├── shared/
-│   │   │   ├── api.test.js
-│   │   │   └── state.test.js
-│   │   └── setup.js           # Vitest setup
 │   ├── integration/           # Integration tests
 │   │   ├── test_api_integration.py
 │   │   └── conftest.py
@@ -3131,7 +3133,9 @@ safe-youtube-viewer/
 **Key Decisions:**
 - No `models/` directory - using dict-based data passing (Python dataclasses if needed)
 - Auth logic in `auth.py` module, not a separate service
-- Tests mirror source structure with additional integration and e2e layers
+- Backend tests mirror source structure in `tests/backend/` directory
+- **Frontend tests collocated** with source files in `frontend/src/` for vitest module resolution (vitest best practice)
+- Additional integration and e2e test layers in `tests/integration/` and `tests/e2e/`
 - `pyproject.toml` for Python dependencies (uv manages environment)
 - Frontend dependencies in separate `package.json`
 - `static/` directory is build output only (in .gitignore)
@@ -5184,14 +5188,16 @@ def test_should_interrupt_video_allows_short_video(test_db):
 
 #### Unit Tests - Frontend
 
-**Framework:** Vitest 1.1.0  
-**DOM Testing:** happy-dom 12.10.3  
-**Location:** `tests/frontend/` mirroring `frontend/src/`
+**Framework:** Vitest 3.2.4
+**DOM Testing:** happy-dom 19.0.2
+**Location:** `frontend/src/` (collocated with source files)
+
+**Rationale for Collocation:** Vitest requires tests to be in the same directory tree as source files for proper ES module resolution. This follows vitest best practices and allows clean relative imports without path resolution issues.
 
 ```javascript
-// tests/frontend/child/grid.test.js
+// frontend/src/child/grid.test.js
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderGrid } from '../../../frontend/src/child/grid.js';
+import { renderGrid } from './grid.js';
 
 describe('renderGrid', () => {
   beforeEach(() => {
