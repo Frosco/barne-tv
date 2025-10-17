@@ -107,6 +107,8 @@ dev = [
     "@vitest/coverage-v8": "^3.2.4",
     "@playwright/test": "^1.40.0",
     "eslint": "^9.37.0",
+    "@eslint/js": "^9.37.0",
+    "globals": "^16.4.0",
     "prettier": "^3.1.1"
   }
 }

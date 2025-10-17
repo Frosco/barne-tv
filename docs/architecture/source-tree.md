@@ -71,7 +71,10 @@ safe-youtube-viewer/
 │   ├── vitest.config.js       # Vitest configuration
 │   ├── playwright.config.js   # Playwright configuration
 │   ├── package.json           # Frontend dependencies
-│   └── .eslintrc.json         # ESLint configuration
+│   ├── eslint.config.js       # ESLint flat config (ESLint 9.x)
+│   ├── .prettierrc            # Prettier configuration
+│   ├── .prettierignore        # Prettier ignore patterns
+│   └── README.md              # Frontend development docs
 ├── static/                     # Built frontend assets (generated, in .gitignore)
 │   ├── assets/
 │   └── dist/

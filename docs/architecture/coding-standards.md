@@ -538,30 +538,48 @@ mascot.src = 'file:///opt/youtube-viewer/static/mascot.svg';
 
 ### ESLint Configuration
 
+**Note:** This project uses ESLint 9.x flat configuration format (not legacy .eslintrc.json).
+
+```javascript
+// eslint.config.js - ESLint 9.x flat configuration
+import js from '@eslint/js';
+import globals from 'globals';
+
+export default [
+  {
+    files: ['src/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2021,
+      sourceType: 'module',
+      globals: {
+        ...globals.browser,
+        ...globals.es2021,
+      },
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      'no-unused-vars': 'error',
+      'no-undef': 'error',
+      'require-await': 'error',
+      'no-shadow': 'warn',
+      'no-console': 'off',
+    },
+  },
+];
+```
+
+**Required Dependencies:**
 ```json
-// .eslintrc.json
+// package.json devDependencies
 {
-  "env": {
-    "browser": true,
-    "es2021": true
-  },
-  "extends": "eslint:recommended",
-  "parserOptions": {
-    "ecmaVersion": 2021,
-    "sourceType": "module"
-  },
-  "rules": {
-    "no-unused-vars": "error",
-    "no-undef": "error",
-    "require-await": "error",
-    "no-shadow": "warn",
-    "no-console": "off"
-  }
+  "eslint": "^9.37.0",
+  "@eslint/js": "^9.37.0",
+  "globals": "^15.0.0"
 }
 ```
 
+**package.json scripts:**
 ```json
-// package.json scripts
 {
   "scripts": {
     "dev": "vite",
