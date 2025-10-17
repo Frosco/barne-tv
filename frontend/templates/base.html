@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Safe YouTube Viewer for Kids - Trygt videovisning for barn">
+
+  {# Title block - child templates can override #}
+  <title>{% block title %}Safe YouTube Viewer{% endblock %}</title>
+
+  {#
+    Vite Development Mode:
+    In development, Vite runs a dev server that serves modules with HMR (Hot Module Replacement).
+    The @vite/client script enables HMR and handles module updates without full page reload.
+
+    Production Mode:
+    In production, Vite builds static assets with hashed filenames to static/ directory.
+    Templates will load the built JavaScript bundles instead of the dev server.
+  #}
+  {% if dev_mode %}
+  {# Development: Vite dev server with HMR #}
+  <script type="module" src="http://localhost:5173/@vite/client"></script>
+  {% endif %}
+</head>
+<body>
+  {#
+    Content block - child templates override this to provide page-specific content.
+
+    Template Inheritance Pattern:
+    Child templates use {% extends "base.html" %} and override blocks.
+    Example:
+      {% extends "base.html" %}
+      {% block title %}Video Grid{% endblock %}
+      {% block content %}
+        <div class="video-grid">...</div>
+      {% endblock %}
+  #}
+  {% block content %}
+  {# Default content - child templates will override this block #}
+  {% endblock %}
+
+  {#
+    Scripts block - loads appropriate entry point based on interface type.
+
+    The 'interface' variable should be set by the backend route:
+    - interface='child' → loads child.js (video grid and playback)
+    - interface='admin' → loads admin.js (channel management and settings)
+
+    In development: Vite serves ES modules directly from src/
+    In production: Loads pre-built bundles from static/assets/
+  #}
+  {% block scripts %}
+  {% if dev_mode %}
+    {# Development: Load source files from Vite dev server #}
+    {% if interface == 'child' %}
+      <script type="module" src="http://localhost:5173/src/child.js"></script>
+    {% elif interface == 'admin' %}
+      <script type="module" src="http://localhost:5173/src/admin.js"></script>
+    {% endif %}
+  {% else %}
+    {# Production: Load built bundles #}
+    {% if interface == 'child' %}
+      <script type="module" src="/static/assets/child.js"></script>
+    {% elif interface == 'admin' %}
+      <script type="module" src="/static/assets/admin.js"></script>
+    {% endif %}
+  {% endif %}
+  {% endblock %}
+</body>
+</html>

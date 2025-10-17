@@ -1,0 +1,232 @@
+/**
+ * Safe YouTube Viewer for Kids - Main Stylesheet
+ * Design system with CSS custom properties
+ */
+
+/* ========================================
+   CSS Reset / Normalize
+   ======================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  color: var(--color-charcoal-text);
+  background-color: var(--color-soft-white);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* ========================================
+   CSS Custom Properties - Design System
+   ======================================== */
+
+:root {
+  /* Primary Colors */
+  --color-primary-yellow: #FFDB4D;
+  --color-soft-white: #FEFEFE;
+  --color-charcoal-text: #2D3436;
+
+  /* Rainbow Supporting Colors */
+  --color-coral: #FF6B6B;
+  --color-sky-blue: #00B4D8;
+  --color-soft-purple: #A8DADC;
+  --color-mint-green: #06D6A0;
+  --color-orange: #FF9500;
+  --color-lavender: #B8B8D1;
+
+  /* Functional Colors */
+  --color-success: #06D6A0;
+  --color-warning: #FFB830;
+  --color-error: #E63946;
+  --color-neutral-gray: #95A5A6;
+  --color-light-gray: #F1F3F5;
+
+  /* Spacing Scale (8px base) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 40px;
+  --space-3xl: 48px;
+
+  /* Typography Scale */
+  --font-size-h1: 48px;
+  --font-size-h2: 36px;
+  --font-size-h3: 32px;
+  --font-size-large-body: 24px;
+  --font-size-body: 18px;
+  --font-size-small-body: 16px;
+  --font-size-caption: 14px;
+
+  --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                         'Roboto', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Shadow Scale */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.15);
+  --shadow-lg: 0 8px 16px rgba(0,0,0,0.18);
+  --shadow-xl: 0 12px 24px rgba(0,0,0,0.2);
+
+  /* Border Radius Scale */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Responsive Breakpoints */
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+}
+
+/* ========================================
+   Placeholder Component Classes
+   ======================================== */
+
+/* Video Card Component */
+.video-card {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out;
+  overflow: hidden;
+  background-color: var(--color-soft-white);
+}
+
+.video-card:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-lg);
+}
+
+.video-card:active {
+  transform: scale(0.98);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Action Button Component */
+.action-button {
+  padding: var(--space-md) var(--space-xl);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-large-body);
+  font-weight: 600;
+  background-color: var(--color-primary-yellow);
+  color: var(--color-charcoal-text);
+  box-shadow: var(--shadow-md);
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out;
+  display: inline-block;
+  text-align: center;
+  min-width: 200px;
+  min-height: 80px;
+}
+
+.action-button:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-lg);
+}
+
+.action-button:active {
+  transform: scale(0.97);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Warning Overlay Component */
+.warning-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* ========================================
+   Utility Classes
+   ======================================== */
+
+/* Accessibility - Screen Reader Only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Focus Indicators */
+:focus-visible {
+  outline: 3px solid var(--color-sky-blue);
+  outline-offset: 2px;
+  transition: outline 150ms ease-in-out;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .video-card:hover {
+    transform: none;
+    box-shadow: var(--shadow-md);
+  }
+
+  .video-card:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .video-card:active,
+  .action-button:active {
+    transform: scale(0.98);
+    transition: transform 50ms;
+  }
+}
