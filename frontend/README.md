@@ -255,6 +255,135 @@ publicDir: 'public'  // Static assets copied to build output
 .sr-only            /* Screen reader only content */
 ```
 
+## Utility Classes
+
+**File:** `src/main.css`
+
+Utility classes provide quick, single-purpose styling for common typography and spacing needs. Use them directly in HTML to avoid writing custom CSS.
+
+### Typography Utilities
+
+Apply consistent text styling using the design system's typography scale:
+
+| Class | Font Size | Weight | Line Height | Usage |
+|-------|-----------|--------|-------------|-------|
+| `.h1` | 48px | 700 Bold | 1.2 | Large headings, goodbye messages |
+| `.h2` | 36px | 700 Bold | 1.3 | Section headings, limit screen |
+| `.h3` | 32px | 700 Bold | 1.3 | Subsection headings, warnings |
+| `.large-body` | 24px | 600 Semi-bold | 1.4 | Button text, questions, emphasis |
+| `.body-text` | 18px | 400 Regular | 1.5 | Video titles, body text |
+| `.small-body` | 16px | 400 Regular | 1.5 | Channel names, secondary text |
+| `.caption` | 14px | 400 Regular | 1.4 | Timestamps, metadata |
+
+**Examples:**
+```html
+<h1 class="h1">Ha det! Vi ses i morgen!</h1>
+<h2 class="h2">Vi er ferdige for i dag!</h2>
+<p class="large-body">Vil du se én til?</p>
+<p class="body-text">Video Title Here</p>
+<span class="caption">2 minutes ago</span>
+```
+
+### Spacing Utilities
+
+Apply consistent margin and padding using the 8px base scale:
+
+**Size Scale:**
+| Token | Size | Usage |
+|-------|------|-------|
+| `xs` | 4px | Tight spacing between related elements |
+| `sm` | 8px | Standard spacing between related elements |
+| `md` | 16px | Form fields, moderate spacing |
+| `lg` | 24px | Grid gaps (tablet), section spacing |
+| `xl` | 32px | Section separation, large spacing |
+| `2xl` | 40px | Page padding (desktop), major sections |
+| `3xl` | 48px | Large breathing room, max spacing |
+
+**Naming Convention:**
+- **Margin:** `.m{direction}-{size}` (e.g., `.mt-lg`, `.mx-md`, `.m-xl`)
+- **Padding:** `.p{direction}-{size}` (e.g., `.pt-sm`, `.px-lg`, `.p-2xl`)
+
+**Direction Abbreviations:**
+- `t` = top
+- `r` = right
+- `b` = bottom
+- `l` = left
+- `x` = left + right (horizontal)
+- `y` = top + bottom (vertical)
+- (no direction) = all sides
+
+**Available Utilities (98 total):**
+```css
+/* Margin: mt, mr, mb, ml, mx, my, m */
+.mt-xs, .mt-sm, .mt-md, .mt-lg, .mt-xl, .mt-2xl, .mt-3xl
+.mr-xs, .mr-sm, .mr-md, .mr-lg, .mr-xl, .mr-2xl, .mr-3xl
+.mb-xs, .mb-sm, .mb-md, .mb-lg, .mb-xl, .mb-2xl, .mb-3xl
+.ml-xs, .ml-sm, .ml-md, .ml-lg, .ml-xl, .ml-2xl, .ml-3xl
+.mx-xs, .mx-sm, .mx-md, .mx-lg, .mx-xl, .mx-2xl, .mx-3xl
+.my-xs, .my-sm, .my-md, .my-lg, .my-xl, .my-2xl, .my-3xl
+.m-xs, .m-sm, .m-md, .m-lg, .m-xl, .m-2xl, .m-3xl
+
+/* Padding: pt, pr, pb, pl, px, py, p */
+.pt-xs, .pt-sm, .pt-md, .pt-lg, .pt-xl, .pt-2xl, .pt-3xl
+.pr-xs, .pr-sm, .pr-md, .pr-lg, .pr-xl, .pr-2xl, .pr-3xl
+.pb-xs, .pb-sm, .pb-md, .pb-lg, .pb-xl, .pb-2xl, .pb-3xl
+.pl-xs, .pl-sm, .pl-md, .pl-lg, .pl-xl, .pl-2xl, .pl-3xl
+.px-xs, .px-sm, .px-md, .px-lg, .px-xl, .px-2xl, .px-3xl
+.py-xs, .py-sm, .py-md, .py-lg, .py-xl, .py-2xl, .py-3xl
+.p-xs, .p-sm, .p-md, .p-lg, .p-xl, .p-2xl, .p-3xl
+```
+
+**Examples:**
+```html
+<!-- Typography with spacing -->
+<h1 class="h1 mt-2xl mb-lg">Main Title</h1>
+<h2 class="h2 mt-xl mb-md">Section Heading</h2>
+<p class="body-text mb-md">Paragraph with bottom margin</p>
+
+<!-- Card with padding and margin -->
+<div class="video-card p-md mb-lg">
+  <img src="thumbnail.jpg" alt="">
+  <h3 class="body-text mt-sm">Video Title</h3>
+</div>
+
+<!-- Button with horizontal padding -->
+<button class="action-button px-xl py-md">
+  <span class="large-body">Click Me</span>
+</button>
+
+<!-- Container with all-sides padding -->
+<div class="p-2xl">
+  <p class="body-text">Content with padding on all sides</p>
+</div>
+```
+
+### When to Use Utility Classes vs. Component Classes
+
+**Use Utility Classes When:**
+- Making quick spacing adjustments: `<div class="mb-lg">`
+- Applying typography styles in templates: `<h1 class="h1">`
+- Prototyping or one-off layouts: `<div class="p-md mt-xl">`
+- Adding spacing between elements without custom CSS
+
+**Use Component Classes When:**
+- Building complex multi-property styles: `.video-card`
+- Creating reusable components with multiple states: `.action-button`
+- Implementing interactive elements with hover/active states: `.warning-overlay`
+- Ensuring consistent patterns across the application
+
+**Best Practice: Combine Both:**
+```html
+<!-- Component class for core styling + utilities for spacing -->
+<div class="video-card mb-lg">
+  <h3 class="body-text mt-sm">Video Title</h3>
+</div>
+
+<!-- Component button + utility spacing -->
+<button class="action-button mt-xl px-2xl">
+  <span class="large-body">Play Video</span>
+</button>
+```
+
 ## Template Inheritance Pattern
 
 **File:** `templates/base.html`
