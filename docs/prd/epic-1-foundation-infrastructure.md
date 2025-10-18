@@ -114,13 +114,12 @@ so that all available content from approved sources is accessible.
 
 **Acceptance Criteria:**
 1. YouTube Data API v3 client configured with API key from environment
-2. Function to fetch all videos from a channel (paginated, up to 500 videos)
-3. Function to fetch all videos from a playlist (up to 200 videos)
+2. Function to fetch all videos from a channel (paginated)
+3. Function to fetch all videos from a playlist
 4. Extract video ID, title, thumbnail URL, duration, and publish date
 5. Handle pagination for channels with many videos
 6. Cache video metadata in SQLite database
 7. Gracefully handle API quota limits with appropriate error messages
-8. RSS fallback function for channels if API fails (returns 15 most recent)
 9. Track API quota usage and display in admin interface
 10. Batch API calls efficiently to minimize quota consumption
 
