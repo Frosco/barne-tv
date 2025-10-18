@@ -5,6 +5,10 @@ TIER 3 Rule 16: All environment variables accessed via this config module.
 """
 
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Database Configuration
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/opt/youtube-viewer/data/app.db")
