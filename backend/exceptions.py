@@ -31,3 +31,17 @@ class VideoUnavailableError(Exception):
     """Raised when a video is no longer available."""
 
     pass
+
+
+class QuotaExceededError(Exception):
+    """
+    Raised when YouTube API quota is exceeded.
+
+    TIER 3 Rule 14: Norwegian messages for users, English for code/logs.
+
+    Story 1.2 - YouTube API Quota Tracking
+    """
+
+    def __init__(self, message: str = "YouTube API-kvote overskredet. Prøv igjen i morgen."):
+        self.message = message
+        super().__init__(self.message)
