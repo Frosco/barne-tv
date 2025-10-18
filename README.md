@@ -92,6 +92,60 @@ This will:
 - Set admin password (hashed with bcrypt)
 - Insert default settings
 
+## YouTube API Setup
+
+**Required for video fetching functionality.**
+
+The application uses YouTube Data API v3 to fetch videos from approved channels and playlists. You need to:
+
+1. **Create a Google Cloud project**
+2. **Enable YouTube Data API v3**
+3. **Generate an API key with restrictions**
+4. **Add the key to your `.env` file**
+
+### Quick Setup
+
+```bash
+# 1. Get your API key from Google Cloud Console
+# Visit: https://console.cloud.google.com/apis/credentials
+
+# 2. Add to .env file
+echo "YOUTUBE_API_KEY=your_api_key_here" >> .env
+
+# 3. Test the API key (server will validate on startup)
+uv run uvicorn backend.main:app --reload
+```
+
+### Detailed Setup Guide
+
+📖 **See [docs/youtube-api-setup.md](docs/youtube-api-setup.md) for:**
+- Step-by-step Google Cloud Console instructions
+- API key security and restrictions
+- Quota limits and monitoring (10,000 units/day)
+- Troubleshooting common issues
+- Best practices and security guidelines
+
+### Quota Information
+
+- **Daily Limit:** 10,000 quota units (resets midnight Pacific Time)
+- **Buffer Threshold:** Application stops at 9,500 units (500 buffer)
+- **Typical Usage:** ~66 channels with 50 videos each per day
+
+### Monitoring Your Quota
+
+```bash
+# Check today's quota usage
+sqlite3 data/app.db "SELECT SUM(quota_cost) FROM api_usage_log WHERE DATE(timestamp) = DATE('now');"
+
+# See API call breakdown
+sqlite3 data/app.db "
+SELECT api_name, COUNT(*) as calls, SUM(quota_cost) as total_cost
+FROM api_usage_log
+WHERE DATE(timestamp) = DATE('now')
+GROUP BY api_name;
+"
+```
+
 ## Running Locally
 
 ### Start Backend Server
