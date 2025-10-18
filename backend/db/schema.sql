@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- =============================================================================
--- API CALL LOG
+-- API CALL LOG (Legacy - kept for compatibility)
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS api_call_log (
@@ -142,6 +142,25 @@ CREATE TABLE IF NOT EXISTS api_call_log (
 
 -- Index on DATE() function for daily aggregation
 CREATE INDEX idx_api_log_date ON api_call_log(DATE(timestamp));
+
+-- =============================================================================
+-- API USAGE LOG (Story 1.2 - YouTube API Quota Tracking)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS api_usage_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_name TEXT NOT NULL,                    -- 'youtube_search', 'youtube_videos', etc.
+    quota_cost INTEGER NOT NULL,               -- 100 for search, 1 for videos, etc.
+    timestamp TEXT NOT NULL,                   -- ISO 8601 UTC format
+    success INTEGER NOT NULL CHECK(success IN (0, 1)),  -- 1 = success, 0 = failure
+    error_message TEXT,                        -- Error details if success=0
+
+    CONSTRAINT chk_quota_cost CHECK (quota_cost > 0)
+);
+
+-- Index on DATE() function for daily quota aggregation
+-- MUST use DATE(timestamp) in queries to benefit from this index
+CREATE INDEX idx_api_usage_timestamp ON api_usage_log(DATE(timestamp));
 
 -- =============================================================================
 -- INITIAL DATA (JSON-encoded values)
