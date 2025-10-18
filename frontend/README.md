@@ -253,7 +253,7 @@ publicDir: 'public'  // Static assets copied to build output
 .action-button      /* Large touch-friendly buttons */
 .warning-overlay    /* Full-screen overlays */
 .sr-only            /* Screen reader only content */
-```
+4```
 
 ## Utility Classes
 
