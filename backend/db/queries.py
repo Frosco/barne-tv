@@ -259,3 +259,77 @@ def bulk_insert_videos(content_source_id: int, videos: list[dict]) -> int:
         )
 
     return len(videos)
+
+
+# =============================================================================
+# SETTINGS MANAGEMENT (Story 1.4)
+# =============================================================================
+
+
+def get_setting(key: str) -> str:
+    """
+    Get a setting value from the settings table.
+
+    Settings are stored as JSON-encoded strings. Caller is responsible
+    for parsing the JSON value (e.g., json.loads() for complex values).
+
+    TIER 1 Rule 6: Always use SQL placeholders.
+    TIER 2 Rule 7: Always use context manager.
+
+    Args:
+        key: Setting key (e.g., 'admin_password_hash', 'daily_limit_minutes')
+
+    Returns:
+        JSON-encoded string value from settings table
+
+    Raises:
+        KeyError: If setting key does not exist
+
+    Example:
+        import json
+        password_hash_json = get_setting('admin_password_hash')
+        password_hash = json.loads(password_hash_json)  # Unwrap JSON encoding
+    """
+    with get_connection() as conn:
+        result = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        if result is None:
+            raise KeyError(f"Setting '{key}' not found")
+        return result[0]
+
+
+def set_setting(key: str, value: str) -> None:
+    """
+    Update or insert a setting value in the settings table.
+
+    Caller is responsible for JSON-encoding complex values before passing.
+
+    TIER 1 Rules Applied:
+    - Rule 3: Always use UTC for timestamps (datetime.now(timezone.utc))
+    - Rule 6: Always use SQL placeholders (never string formatting)
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        key: Setting key
+        value: JSON-encoded string value
+
+    Example:
+        import json
+        from passlib.hash import bcrypt
+
+        # Hash password and JSON-encode it
+        hashed = bcrypt.hash("admin_password")
+        json_value = json.dumps(hashed)
+        set_setting('admin_password_hash', json_value)
+    """
+    # TIER 1 Rule 3: Always use UTC for timestamps
+    updated_at = datetime.now(timezone.utc).isoformat()
+
+    # TIER 1 Rule 6: Always use SQL placeholders
+    with get_connection() as conn:
+        # Use INSERT OR REPLACE for upsert behavior
+        conn.execute(
+            """INSERT OR REPLACE INTO settings (key, value, updated_at)
+               VALUES (?, ?, ?)""",
+            (key, value, updated_at),
+        )
