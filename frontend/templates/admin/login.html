@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Login - Safe YouTube Viewer{% endblock %}
+
+{% block content %}
+<div class="login-container">
+  <div class="login-card">
+    <h1 class="login-title">Admin Login</h1>
+
+    <form id="login-form" class="login-form">
+      <div class="form-group">
+        <label for="password" class="form-label">Passord</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          class="form-input"
+          required
+          autofocus
+          autocomplete="current-password"
+        />
+      </div>
+
+      <div id="error-message" class="error-message" role="alert" aria-live="polite" style="display: none;"></div>
+
+      <button type="submit" id="login-button" class="btn btn-primary">
+        Logg inn
+      </button>
+    </form>
+  </div>
+</div>
+
+<style>
+  /* Login page styles using design system */
+  .login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: var(--color-background, #f5f5f5);
+    padding: var(--space-md, 16px);
+  }
+
+  .login-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: var(--shadow-md, 0 4px 6px rgba(0,0,0,0.15));
+    padding: var(--space-lg, 32px);
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .login-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-text, #2D3436);
+    margin: 0 0 var(--space-lg, 32px) 0;
+    text-align: center;
+  }
+
+  .login-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md, 16px);
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text, #2D3436);
+  }
+
+  .form-input {
+    padding: 12px;
+    border: 2px solid var(--color-border, #dfe6e9);
+    border-radius: 4px;
+    font-size: 16px;
+    transition: border-color 0.2s;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #FFDB4D);
+    box-shadow: 0 0 0 3px rgba(255, 219, 77, 0.1);
+  }
+
+  .error-message {
+    padding: 12px;
+    background: var(--color-error-bg, #fff5f5);
+    color: var(--color-error, #e74c3c);
+    border-radius: 4px;
+    font-size: 14px;
+    border-left: 4px solid var(--color-error, #e74c3c);
+  }
+
+  .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, opacity 0.2s;
+  }
+
+  .btn-primary {
+    background: var(--color-primary, #FFDB4D);
+    color: var(--color-text, #2D3436);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-primary-hover, #FFD11A);
+  }
+
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 219, 77, 0.3);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 480px) {
+    .login-card {
+      padding: var(--space-md, 24px);
+    }
+
+    .login-title {
+      font-size: 20px;
+    }
+  }
+</style>
+{% endblock %}
