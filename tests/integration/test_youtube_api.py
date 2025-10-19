@@ -50,7 +50,6 @@ def test_validate_youtube_api_key_with_real_api(monkeypatch, test_db):
         return _mock()
 
     monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
-    monkeypatch.setattr("backend.services.content_source.get_connection", mock_get_connection)
 
     # Act
     result = validate_youtube_api_key()
@@ -78,7 +77,6 @@ def test_validation_uses_minimal_quota(monkeypatch, test_db):
         return _mock()
 
     monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
-    monkeypatch.setattr("backend.services.content_source.get_connection", mock_get_connection)
 
     today = datetime.now(timezone.utc).date().isoformat()
 
@@ -114,7 +112,6 @@ def test_full_quota_workflow(monkeypatch, test_db):
         return _mock()
 
     monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
-    monkeypatch.setattr("backend.services.content_source.get_connection", mock_get_connection)
 
     today = datetime.now(timezone.utc).date().isoformat()
 
