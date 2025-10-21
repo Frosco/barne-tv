@@ -9,8 +9,10 @@ TIER 2 Rule 12: API responses must use consistent structure
 import json
 import logging
 from fastapi import APIRouter, Request, Response, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
+
+from googleapiclient.errors import HttpError
 
 from backend.auth import (
     create_session,
@@ -19,6 +21,9 @@ from backend.auth import (
     verify_password,
 )
 from backend.db.queries import get_setting
+from backend.exceptions import QuotaExceededError, NotFoundError
+from backend.middleware import limiter
+from backend.services import content_source
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -33,6 +38,12 @@ class LoginRequest(BaseModel):
     """Request model for admin login."""
 
     password: str
+
+
+class AddSourceRequest(BaseModel):
+    """Request model for adding content source."""
+
+    input: str
 
 
 # =============================================================================
@@ -63,7 +74,8 @@ def admin_login_page(request: Request):
 
 
 @router.post("/admin/login")
-def admin_login(login_data: LoginRequest, response: Response):
+@limiter.limit("20/minute")  # More restrictive for login to prevent brute-force
+def admin_login(request: Request, login_data: LoginRequest, response: Response):
     """
     Admin login endpoint with password authentication.
 
@@ -135,6 +147,7 @@ def admin_login(login_data: LoginRequest, response: Response):
 
 
 @router.post("/admin/logout")
+@limiter.limit("100/minute")
 def admin_logout(request: Request, response: Response):
     """
     Admin logout endpoint - invalidates session and clears cookie.
@@ -171,8 +184,394 @@ def admin_logout(request: Request, response: Response):
     return {"success": True, "redirect": "/admin/login"}
 
 
-# Routes will be added in future stories
-# Example structure:
-# @router.get("/api/videos")
-# async def get_videos():
-#     return {"success": True, "videos": []}
+# =============================================================================
+# CHANNEL MANAGEMENT ROUTES (Story 1.5)
+# =============================================================================
+
+
+@router.get("/admin/channels", response_class=HTMLResponse)
+@limiter.limit("100/minute")
+def admin_channels_page(request: Request):
+    """
+    Serve admin channel management page.
+
+    Args:
+        request: FastAPI Request object for accessing app state
+
+    Returns:
+        HTML response with channels template
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "admin/channels.html",
+        {
+            "request": request,
+            "interface": "admin",
+            "dev_mode": True,  # TODO: Use config.DEBUG in production
+        },
+    )
+
+
+@router.post("/admin/sources")
+@limiter.limit("100/minute")
+def add_source(request: Request, source_data: AddSourceRequest):
+    """
+    Add new YouTube channel or playlist as content source.
+
+    TIER 1 Rules Applied:
+    - Rule 5: Input validation via content_source.add_source()
+    - Rule 6: SQL placeholders via database query functions
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error messages for users.
+
+    Args:
+        request: FastAPI Request object for authentication
+        source_data: AddSourceRequest with input field (URL or ID)
+
+    Returns:
+        Success (200): {
+            "success": true,
+            "source": {...},
+            "videosAdded": 487,
+            "message": "Kanal lagt til: Blippi (487 videoer)"
+        }
+        Partial fetch (200): {
+            "success": true,
+            "partial": true,
+            "source": {...},
+            "videosAdded": 600,
+            "message": "Lagt til 600 videoer (nettverksfeil)...",
+            "retryAvailable": true
+        }
+        Error responses: 409 (duplicate), 400 (invalid), 503 (quota/API error)
+
+    Example:
+        POST /admin/sources
+        Body: {"input": "https://www.youtube.com/@Blippi"}
+        Response: {"success": true, "source": {...}, "videosAdded": 487}
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Call service layer to add source
+        result = content_source.add_source(source_data.input)
+
+        # Check if fetch was complete or partial
+        fetch_complete = result.get("fetch_complete", True)
+        source_name = result["name"]
+        video_count = result["video_count"]
+
+        # Convert snake_case to camelCase for frontend
+        source_dict = {
+            "id": result.get("id"),  # Will be set by database
+            "sourceId": result["source_id"],
+            "sourceType": result["source_type"],
+            "name": source_name,
+            "videoCount": video_count,
+        }
+
+        if fetch_complete:
+            # Complete fetch - success message
+            return {
+                "success": True,
+                "source": source_dict,
+                "videosAdded": video_count,
+                "message": f"Kanal lagt til: {source_name} ({video_count} videoer)",
+            }
+        else:
+            # Partial fetch - warning message with retry hint
+            return {
+                "success": True,
+                "partial": True,
+                "source": source_dict,
+                "videosAdded": video_count,
+                "message": f"Lagt til {video_count} videoer (nettverksfeil). Klikk 'Oppdater' for å hente resten.",
+                "retryAvailable": True,
+            }
+
+    except ValueError as e:
+        # Handle validation errors (duplicate, invalid input)
+        error_msg = str(e)
+        logger.warning(f"Validation error adding source: {error_msg}")
+
+        # Check if it's a duplicate error
+        if "allerede lagt til" in error_msg:
+            return JSONResponse(
+                status_code=409, content={"error": "Already exists", "message": error_msg}
+            )
+        else:
+            # Invalid input format
+            return JSONResponse(
+                status_code=400, content={"error": "Invalid input", "message": error_msg}
+            )
+
+    except QuotaExceededError as e:
+        # YouTube API quota exceeded
+        logger.error(f"Quota exceeded while adding source: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Quota exceeded",
+                "message": "YouTube kvote oppbrukt. Prøv igjen i morgen.",
+            },
+        )
+
+    except HttpError as e:
+        # YouTube API errors
+        logger.error(f"YouTube API error while adding source: {e}")
+
+        if e.resp.status == 404:
+            return JSONResponse(
+                status_code=404, content={"error": "Not found", "message": "Kanal ikke funnet"}
+            )
+        elif e.resp.status == 403:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": "YouTube API error",
+                    "message": "YouTube API ikke tilgjengelig",
+                },
+            )
+        else:
+            # Generic YouTube API error
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": "YouTube API error",
+                    "message": "YouTube API ikke tilgjengelig",
+                },
+            )
+
+    except Exception as e:
+        # Generic error handler
+        logger.error(f"Unexpected error adding source: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.get("/admin/sources")
+@limiter.limit("100/minute")
+def list_sources(request: Request):
+    """
+    List all content sources (channels and playlists).
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    Args:
+        request: FastAPI Request object for authentication
+
+    Returns:
+        {"sources": [
+            {
+                "id": 1,
+                "sourceId": "UCrwObTfqv8u1KO7Fgk-FXHQ",
+                "sourceType": "channel",
+                "name": "Blippi",
+                "videoCount": 487,
+                "lastRefresh": "2025-10-19T10:15:00Z",
+                "fetchMethod": "api",
+                "addedAt": "2025-10-19T10:15:00Z"
+            }
+        ]}
+
+    Example:
+        GET /admin/sources
+        Response: {"sources": [...]}
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Call service layer to list sources
+        sources = content_source.list_sources()
+
+        # TIER 2 Rule 12: Consistent response structure
+        return {"sources": sources}
+
+    except Exception as e:
+        logger.error(f"Error listing sources: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.delete("/admin/sources/{source_id}")
+@limiter.limit("100/minute")
+def remove_source(request: Request, source_id: int):
+    """
+    Remove content source and all its videos.
+
+    CASCADE DELETE automatically removes videos due to foreign key constraint.
+
+    TIER 1 Rule 6: SQL placeholders via delete_content_source().
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error and success messages.
+
+    Args:
+        request: FastAPI Request object for authentication
+        source_id: Primary key ID of content_sources table
+
+    Returns:
+        Success (200): {
+            "success": true,
+            "videosRemoved": 487,
+            "message": "Kilde fjernet: Blippi (487 videoer slettet)"
+        }
+        Error (404): {"error": "Not found", "message": "Kilde ikke funnet"}
+
+    Example:
+        DELETE /admin/sources/3
+        Response: {"success": true, "videosRemoved": 487}
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Call service layer to remove source
+        result = content_source.remove_source(source_id)
+
+        source_name = result["source_name"]
+        videos_removed = result["videos_removed"]
+
+        # TIER 2 Rule 12: Consistent response structure
+        # TIER 3 Rule 14: Norwegian success message
+        return {
+            "success": True,
+            "videosRemoved": videos_removed,
+            "message": f"Kilde fjernet: {source_name} ({videos_removed} videoer slettet)",
+        }
+
+    except NotFoundError as e:
+        # Source not found
+        logger.warning(f"Source not found for deletion: {source_id}")
+        return JSONResponse(status_code=404, content={"error": "Not found", "message": str(e)})
+
+    except ValueError as e:
+        # Legacy fallback - in case ValueError is raised instead of NotFoundError
+        logger.warning(f"Source not found for deletion: {source_id}")
+        return JSONResponse(status_code=404, content={"error": "Not found", "message": str(e)})
+
+    except Exception as e:
+        logger.error(f"Error removing source {source_id}: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.post("/admin/sources/{source_id}/refresh")
+@limiter.limit("100/minute")
+def refresh_source(request: Request, source_id: int):
+    """
+    Refresh content source by fetching new videos.
+
+    Compares fetched videos with existing database videos and inserts only NEW videos.
+
+    TIER 1 Rules Applied:
+    - Rule 3: UTC timestamps via content_source.refresh_source()
+    - Rule 6: SQL placeholders via database query functions
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error and success messages.
+
+    Args:
+        request: FastAPI Request object for authentication
+        source_id: Primary key ID of content_sources table
+
+    Returns:
+        Success (200): {
+            "success": true,
+            "videosAdded": 12,
+            "videosUpdated": 0,
+            "lastRefresh": "2025-10-19T14:30:00Z",
+            "message": "Oppdatert: 12 nye videoer"
+        }
+        Error responses: 404 (not found), 503 (quota/API error)
+
+    Example:
+        POST /admin/sources/3/refresh
+        Response: {"success": true, "videosAdded": 12, "lastRefresh": "..."}
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Call service layer to refresh source
+        result = content_source.refresh_source(source_id)
+
+        videos_added = result["videos_added"]
+
+        # TIER 2 Rule 12: Consistent response structure
+        # TIER 3 Rule 14: Norwegian success message
+        return {
+            "success": True,
+            "videosAdded": videos_added,
+            "videosUpdated": 0,
+            "lastRefresh": result["last_refresh"],
+            "message": f"Oppdatert: {videos_added} nye videoer",
+        }
+
+    except ValueError as e:
+        # Source not found or invalid source type
+        error_msg = str(e)
+        logger.warning(f"Error refreshing source {source_id}: {error_msg}")
+        raise HTTPException(status_code=404, detail={"error": "Not found", "message": error_msg})
+
+    except QuotaExceededError as e:
+        # YouTube API quota exceeded
+        logger.error(f"Quota exceeded while refreshing source {source_id}: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Quota exceeded",
+                "message": "YouTube kvote oppbrukt. Prøv igjen i morgen.",
+            },
+        )
+
+    except HttpError as e:
+        # YouTube API errors
+        logger.error(f"YouTube API error while refreshing source {source_id}: {e}")
+
+        if e.resp.status == 404:
+            raise HTTPException(
+                status_code=404, detail={"error": "Not found", "message": "Kanal ikke funnet"}
+            )
+        elif e.resp.status == 403:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "YouTube API error",
+                    "message": "YouTube API ikke tilgjengelig",
+                },
+            )
+        else:
+            # Generic YouTube API error
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "YouTube API error",
+                    "message": "YouTube API ikke tilgjengelig",
+                },
+            )
+
+    except Exception as e:
+        logger.error(f"Unexpected error refreshing source {source_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail={"error": "Internal error", "message": "Noe gikk galt"}
+        )
