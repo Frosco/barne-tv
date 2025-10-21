@@ -45,3 +45,9 @@ class QuotaExceededError(Exception):
     def __init__(self, message: str = "YouTube API-kvote overskredet. Prøv igjen i morgen."):
         self.message = message
         super().__init__(self.message)
+
+
+class NotFoundError(Exception):
+    """Raised when a requested resource is not found."""
+
+    pass

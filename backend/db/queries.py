@@ -266,6 +266,152 @@ def bulk_insert_videos(content_source_id: int, videos: list[dict]) -> int:
 # =============================================================================
 
 
+def get_all_content_sources() -> list[dict]:
+    """
+    Get all content sources ordered by most recently added first.
+
+    TIER 1 Rule 6: Always use SQL placeholders.
+    TIER 2 Rule 7: Always use context manager.
+
+    Returns:
+        List of source dicts with all fields
+
+    Example:
+        sources = get_all_content_sources()
+        for source in sources:
+            print(f"{source['name']}: {source['video_count']} videos")
+    """
+    with get_connection() as conn:
+        results = conn.execute("SELECT * FROM content_sources ORDER BY added_at DESC").fetchall()
+        return [dict(row) for row in results]
+
+
+def get_source_by_id(id: int) -> dict | None:
+    """
+    Get content source by primary key ID.
+
+    TIER 1 Rule 6: Always use SQL placeholders.
+    TIER 2 Rule 7: Always use context manager.
+
+    Args:
+        id: Primary key of content_sources table
+
+    Returns:
+        Dict of source row if exists, None otherwise
+
+    Example:
+        source = get_source_by_id(3)
+        if source:
+            print(f"Found source: {source['name']}")
+    """
+    with get_connection() as conn:
+        result = conn.execute("SELECT * FROM content_sources WHERE id = ?", (id,)).fetchone()
+        return dict(result) if result else None
+
+
+def delete_content_source(id: int) -> None:
+    """
+    Delete content source by ID.
+
+    CASCADE DELETE will automatically remove all videos associated with
+    this source due to foreign key constraint.
+
+    TIER 1 Rule 6: Always use SQL placeholders.
+    TIER 2 Rule 7: Always use context manager.
+
+    Args:
+        id: Primary key of content_sources table
+
+    Example:
+        delete_content_source(3)  # Deletes source and all its videos
+    """
+    with get_connection() as conn:
+        conn.execute("DELETE FROM content_sources WHERE id = ?", (id,))
+
+
+def update_content_source_refresh(id: int, last_refresh: str, video_count: int) -> None:
+    """
+    Update last_refresh timestamp and video_count after refreshing source.
+
+    TIER 1 Rules Applied:
+    - Rule 3: Caller must provide UTC timestamp for last_refresh
+    - Rule 6: Always use SQL placeholders
+
+    TIER 2 Rule 7: Always use context manager.
+
+    Args:
+        id: Primary key of content_sources table
+        last_refresh: ISO 8601 UTC timestamp of refresh
+        video_count: Updated video count
+
+    Example:
+        now = datetime.now(timezone.utc).isoformat()
+        update_content_source_refresh(3, now, 487)
+    """
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE content_sources 
+               SET last_refresh = ?, video_count = ?, updated_at = datetime('now')
+               WHERE id = ?""",
+            (last_refresh, video_count, id),
+        )
+
+
+def count_source_videos(content_source_id: int) -> int:
+    """
+    Count videos associated with a content source.
+
+    TIER 1 Rule 6: Always use SQL placeholders.
+    TIER 2 Rule 7: Always use context manager.
+
+    Args:
+        content_source_id: Primary key of content_sources table
+
+    Returns:
+        Number of videos associated with this source
+
+    Example:
+        count = count_source_videos(3)
+        print(f"Source has {count} videos")
+    """
+    with get_connection() as conn:
+        result = conn.execute(
+            "SELECT COUNT(*) FROM videos WHERE content_source_id = ?", (content_source_id,)
+        ).fetchone()
+        return int(result[0])
+
+
+def get_source_video_ids(content_source_id: int) -> set[str]:
+    """
+    Get all video IDs associated with a content source.
+
+    Returns a set for efficient membership testing when filtering new videos.
+
+    TIER 1 Rule 6: Always use SQL placeholders.
+    TIER 2 Rule 7: Always use context manager.
+
+    Args:
+        content_source_id: Primary key of content_sources table
+
+    Returns:
+        Set of video_id strings
+
+    Example:
+        existing_ids = get_source_video_ids(3)
+        new_ids = [vid for vid in fetched_ids if vid not in existing_ids]
+    """
+    with get_connection() as conn:
+        results = conn.execute(
+            "SELECT video_id FROM videos WHERE content_source_id = ?", (content_source_id,)
+        ).fetchall()
+        return {row["video_id"] for row in results}
+
+
+# =============================================================================
+# SETTINGS MANAGEMENT (Story 1.4)
+# =============================================================================
+
+
 def get_setting(key: str) -> str:
     """
     Get a setting value from the settings table.
