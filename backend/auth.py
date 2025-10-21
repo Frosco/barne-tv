@@ -1,7 +1,7 @@
 """
 Session management and authentication for admin interface.
 
-TIER 1 Rule 4: Admin passwords must use bcrypt hashing via passlib
+TIER 1 Rule 4: Admin passwords must use bcrypt hashing
 TIER 1 Rule 3: Always use UTC for timestamps
 TIER 2 Rule 10: Session validation must use centralized helper
 """
@@ -9,7 +9,7 @@ TIER 2 Rule 10: Session validation must use centralized helper
 import secrets
 from datetime import datetime, timezone, timedelta
 from fastapi import Request, HTTPException
-from passlib.hash import bcrypt
+import bcrypt
 
 
 # In-memory session store
@@ -21,7 +21,7 @@ def hash_password(password: str) -> str:
     """
     Hash password using bcrypt with automatic salt generation.
 
-    TIER 1 Rule 4: Must use bcrypt hashing via passlib.
+    TIER 1 Rule 4: Must use bcrypt hashing.
 
     Args:
         password: Plain text password
@@ -33,14 +33,18 @@ def hash_password(password: str) -> str:
         hashed = hash_password("admin_password_123")
         # Returns: '$2b$12$...' (60 chars)
     """
-    return bcrypt.hash(password)
+    # bcrypt.hashpw requires bytes and returns bytes
+    password_bytes = password.encode("utf-8")
+    salt = bcrypt.gensalt()
+    hashed_bytes = bcrypt.hashpw(password_bytes, salt)
+    return hashed_bytes.decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Verify a password against a bcrypt hash.
 
-    TIER 1 Rule 4: Must use bcrypt hashing via passlib.
+    TIER 1 Rule 4: Must use bcrypt hashing.
 
     Args:
         plain_password: Plain text password from user
@@ -53,7 +57,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         stored_hash = '$2b$12$...'
         is_valid = verify_password("admin_password_123", stored_hash)
     """
-    return bcrypt.verify(plain_password, hashed_password)
+    # bcrypt.checkpw requires bytes
+    password_bytes = plain_password.encode("utf-8")
+    hashed_bytes = hashed_password.encode("utf-8")
+    return bcrypt.checkpw(password_bytes, hashed_bytes)
 
 
 def create_session() -> str:

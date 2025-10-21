@@ -48,13 +48,17 @@ def set_admin_password(password: str):
     Args:
         password: Plain text admin password to hash and store
 
-    TIER 1 Rule 4: Must use bcrypt hashing via passlib
+    TIER 1 Rule 4: Must use bcrypt hashing
 
     Note: Uses manual connection management as this is a bootstrap script.
     """
-    from passlib.hash import bcrypt
+    import bcrypt
 
-    hashed = bcrypt.hash(password)
+    # bcrypt.hashpw requires bytes and returns bytes
+    password_bytes = password.encode("utf-8")
+    salt = bcrypt.gensalt()
+    hashed_bytes = bcrypt.hashpw(password_bytes, salt)
+    hashed = hashed_bytes.decode("utf-8")
 
     conn = sqlite3.connect(DATABASE_PATH)
 

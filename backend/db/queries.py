@@ -461,10 +461,12 @@ def set_setting(key: str, value: str) -> None:
 
     Example:
         import json
-        from passlib.hash import bcrypt
+        import bcrypt
 
         # Hash password and JSON-encode it
-        hashed = bcrypt.hash("admin_password")
+        password_bytes = "admin_password".encode('utf-8')
+        hashed_bytes = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+        hashed = hashed_bytes.decode('utf-8')
         json_value = json.dumps(hashed)
         set_setting('admin_password_hash', json_value)
     """

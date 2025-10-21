@@ -8,7 +8,7 @@ Coverage Requirement: 100% for auth.py (TIER 1 code)
 """
 
 import pytest
-from passlib.hash import bcrypt
+import bcrypt
 
 from backend.auth import hash_password, verify_password
 
@@ -98,11 +98,11 @@ def test_rule4_password_never_stored_plain_text():
 @pytest.mark.tier1
 def test_rule4_bcrypt_library_used():
     """
-    TIER 1 Rule 4: Must use passlib's bcrypt implementation.
+    TIER 1 Rule 4: Must use bcrypt implementation.
 
     Verifies:
-    - bcrypt.hash() is used for hashing
-    - bcrypt.verify() is used for verification
+    - bcrypt.hashpw() is used for hashing
+    - bcrypt.checkpw() is used for verification
     - Not using weaker algorithms (SHA256, MD5, etc.)
     """
     password = "test_password"
@@ -110,8 +110,10 @@ def test_rule4_bcrypt_library_used():
     # Hash using our function
     hashed = hash_password(password)
 
-    # Verify it's a valid bcrypt hash by using bcrypt.verify directly
-    assert bcrypt.verify(password, hashed), "Hash must be compatible with bcrypt.verify()"
+    # Verify it's a valid bcrypt hash by using bcrypt.checkpw directly
+    assert bcrypt.checkpw(
+        password.encode("utf-8"), hashed.encode("utf-8")
+    ), "Hash must be compatible with bcrypt.checkpw()"
 
     # Verify hash format matches bcrypt
     # Bcrypt format: $2b$<cost>$<salt><hash>

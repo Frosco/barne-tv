@@ -10,8 +10,7 @@ dependencies = [
     "jinja2==3.1.6",
     "google-api-python-client==2.184.0",
     "requests==2.32.5",
-    "passlib[bcrypt]==1.7.4",
-    "bcrypt==4.2.1",  # Pin bcrypt to 4.x for passlib compatibility
+    "bcrypt>=4.2.1",
     "python-multipart==0.0.20",
     "isodate==0.7.2",
     "python-dotenv==1.1.1",

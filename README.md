@@ -301,7 +301,7 @@ barne-tv/
 
 **Dependencies:**
 - google-api-python-client 2.113.0
-- passlib[bcrypt] 1.7.4
+- bcrypt >=4.2.1 (modern Rust-based password hashing)
 - requests 2.31.0
 
 **Development:**
