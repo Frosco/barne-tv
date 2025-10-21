@@ -11,8 +11,10 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
+from slowapi.errors import RateLimitExceeded
 
 from backend.config import DEBUG, validate_config
+from backend.middleware import get_limiter, custom_rate_limit_handler
 from backend.routes import router
 
 logger = logging.getLogger(__name__)
@@ -73,6 +75,11 @@ app = FastAPI(
     debug=DEBUG,
     lifespan=lifespan,
 )
+
+# Configure rate limiting (Story 1.5 QA Fix)
+limiter = get_limiter()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, custom_rate_limit_handler)
 
 # Configure Jinja2 templates
 TEMPLATE_DIR = Path(__file__).parent.parent / "frontend" / "templates"
