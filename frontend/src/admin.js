@@ -6,6 +6,7 @@
  * Security: Use textContent (not innerHTML) to prevent XSS
  */
 import './main.css';
+import { initChannelManagement } from './admin/channels.js';
 
 console.log('Admin interface initialized');
 
@@ -94,5 +95,29 @@ function initLoginForm() {
   passwordInput.focus();
 }
 
-// Initialize login form on page load
-document.addEventListener('DOMContentLoaded', initLoginForm);
+// =============================================================================
+// PAGE INITIALIZATION
+// =============================================================================
+
+/**
+ * Initialize appropriate page module based on current page.
+ */
+function initPage() {
+  // Check which page we're on
+  const path = window.location.pathname;
+
+  if (path.includes('/admin/login')) {
+    // Login page
+    initLoginForm();
+  } else if (path.includes('/admin/channels')) {
+    // Channel management page (Story 1.5)
+    initChannelManagement();
+  } else if (path === '/admin' || path === '/admin/') {
+    // Dashboard or default admin page - could redirect to channels
+    // For now, assume it's the channels page
+    initChannelManagement();
+  }
+}
+
+// Initialize appropriate page on DOM load
+document.addEventListener('DOMContentLoaded', initPage);

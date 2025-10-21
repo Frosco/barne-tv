@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Kanaler - Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+  <header class="admin-header">
+    <h1 class="admin-title">Kanal Administrasjon</h1>
+    <p class="admin-subtitle">Administrer YouTube-kanaler og spillelister</p>
+  </header>
+
+  {# Add Channel Form #}
+  <section class="add-channel-section">
+    <h2 class="section-title">Legg til ny kanal</h2>
+    <form data-add-channel-form class="add-channel-form">
+      <div class="form-group">
+        <label for="channel-input" class="form-label">YouTube kanal URL eller ID</label>
+        <input
+          type="text"
+          id="channel-input"
+          data-channel-input
+          class="form-input"
+          placeholder="https://www.youtube.com/@Blippi eller kanal ID"
+          required
+        />
+      </div>
+      <button type="submit" data-add-button class="btn btn-primary">
+        Legg til kanal
+      </button>
+    </form>
+  </section>
+
+  {# Success/Error Messages #}
+  <div data-message-container class="message-container" style="display: none;">
+    <p data-message-text class="message-text"></p>
+  </div>
+
+  {# Channels Table #}
+  <section class="channels-section">
+    <h2 class="section-title">Kanaler</h2>
+    <div class="channels-table-container">
+      <table data-channels-table class="channels-table">
+        <thead>
+          <tr>
+            <th class="table-header">Miniatyrbilde</th>
+            <th class="table-header">Navn</th>
+            <th class="table-header">Type</th>
+            <th class="table-header">Videoer</th>
+            <th class="table-header">Sist oppdatert</th>
+            <th class="table-header">Handlinger</th>
+          </tr>
+        </thead>
+        <tbody data-channels-tbody>
+          {# Table rows will be dynamically inserted by JavaScript #}
+          <tr data-loading-row>
+            <td colspan="6" class="loading-cell">Laster kanaler...</td>
+          </tr>
+        </tbody>
+      </table>
+      <div data-empty-state class="empty-state" style="display: none;">
+        <p class="empty-state-text">Ingen kanaler lagt til ennå.</p>
+        <p class="empty-state-hint">Bruk skjemaet ovenfor for å legge til din første kanal.</p>
+      </div>
+    </div>
+  </section>
+
+  {# Confirmation Dialog (Hidden by default) #}
+  <div data-confirm-dialog class="confirm-dialog-overlay" style="display: none;">
+    <div class="confirm-dialog">
+      <div class="confirm-dialog-header">
+        <h3 class="confirm-dialog-title">Bekreft sletting</h3>
+      </div>
+      <div class="confirm-dialog-body">
+        <p data-confirm-message class="confirm-dialog-message">
+          Er du sikker på at du vil fjerne denne kanalen?
+        </p>
+        <p data-confirm-details class="confirm-dialog-details"></p>
+      </div>
+      <div class="confirm-dialog-actions">
+        <button data-confirm-cancel class="btn btn-secondary">Avbryt</button>
+        <button data-confirm-delete class="btn btn-danger">Ja, fjern</button>
+      </div>
+    </div>
+  </div>
+
+  {# Loading Overlay (Hidden by default) #}
+  <div data-loading-overlay class="loading-overlay" style="display: none;">
+    <div class="loading-spinner"></div>
+    <p class="loading-text">Laster...</p>
+  </div>
+</div>
+{% endblock %}

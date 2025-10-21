@@ -25,4 +25,25 @@ export default [
       'no-console': 'off',
     },
   },
+  // Test files - add Node.js globals for Vitest
+  {
+    files: ['src/**/*.test.js'],
+    languageOptions: {
+      ecmaVersion: 2021,
+      sourceType: 'module',
+      globals: {
+        ...globals.browser,
+        ...globals.es2021,
+        ...globals.node,
+      },
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      'no-unused-vars': 'error',
+      'no-undef': 'error',
+      'require-await': 'off', // Disable for test files (mocks may not need await)
+      'no-shadow': 'warn',
+      'no-console': 'off',
+    },
+  },
 ];
