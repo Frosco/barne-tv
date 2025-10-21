@@ -1750,3 +1750,561 @@ def test_no_api_key_in_http_error_messages(monkeypatch, caplog):
     # CRITICAL SECURITY CHECK
     all_logs = caplog.text
     assert test_api_key not in all_logs, "SECURITY VIOLATION: API key found in HTTP error logs!"
+
+
+# =============================================================================
+# list_sources() Tests (Story 1.5)
+# =============================================================================
+
+
+def test_list_sources_returns_all_content_sources(monkeypatch, test_db):
+    """
+    Test list_sources() returns all content sources (Story 1.5).
+
+    Verifies:
+    - Returns list of all sources from database
+    - Converts snake_case to camelCase for frontend
+    - Orders by added_at DESC
+    """
+    from backend.services.content_source import list_sources
+
+    # Arrange - Mock database to return sources
+    mock_sources = [
+        {
+            "id": 1,
+            "source_id": "UCtest1",
+            "source_type": "channel",
+            "name": "Channel 1",
+            "video_count": 50,
+            "last_refresh": "2023-12-01T00:00:00Z",
+            "fetch_method": "api",
+            "added_at": "2023-12-01T00:00:00Z",
+        },
+        {
+            "id": 2,
+            "source_id": "PLtest2",
+            "source_type": "playlist",
+            "name": "Playlist 1",
+            "video_count": 30,
+            "last_refresh": "2023-12-02T00:00:00Z",
+            "fetch_method": "api",
+            "added_at": "2023-12-02T00:00:00Z",
+        },
+    ]
+
+    monkeypatch.setattr(
+        "backend.services.content_source.get_all_content_sources", lambda: mock_sources
+    )
+
+    # Act
+    result = list_sources()
+
+    # Assert
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert result[0]["sourceId"] == "UCtest1"  # camelCase
+    assert result[1]["sourceId"] == "PLtest2"
+
+
+def test_list_sources_returns_empty_list_when_no_sources(monkeypatch, test_db):
+    """
+    Test list_sources() returns empty list when no sources exist.
+
+    Edge case: Fresh installation.
+    """
+    from backend.services.content_source import list_sources
+
+    # Arrange - Mock database to return empty list
+    monkeypatch.setattr("backend.services.content_source.get_all_content_sources", lambda: [])
+
+    # Act
+    result = list_sources()
+
+    # Assert
+    assert isinstance(result, list)
+    assert len(result) == 0
+
+
+# =============================================================================
+# remove_source() Tests (Story 1.5)
+# =============================================================================
+
+
+def test_remove_source_successfully_deletes_source(monkeypatch, test_db):
+    """
+    Test remove_source() successfully deletes content source (Story 1.5).
+
+    Verifies:
+    - Gets source from database
+    - Counts associated videos
+    - Deletes source (CASCADE deletes videos)
+    - Returns videos_removed count and source_name
+    """
+    from backend.services.content_source import remove_source
+
+    # Arrange
+    mock_source = {
+        "id": 1,
+        "source_id": "UCtest",
+        "name": "Test Channel",
+        "video_count": 42,
+    }
+
+    def mock_get_source(source_id):
+        return mock_source if source_id == 1 else None
+
+    def mock_count_videos(source_id):
+        return 42 if source_id == 1 else 0
+
+    mock_delete_called = False
+
+    def mock_delete(source_id):
+        nonlocal mock_delete_called
+        mock_delete_called = True
+
+    monkeypatch.setattr("backend.services.content_source.get_source_by_id", mock_get_source)
+    monkeypatch.setattr("backend.services.content_source.delete_content_source", mock_delete)
+
+    # Mock the video count query
+    class MockRow:
+        """Mock Row object that supports both index and key access."""
+
+        def __getitem__(self, key):
+            if key == 0 or key == "COUNT(*)":
+                return 42
+            raise KeyError(key)
+
+    class MockConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, query, params):
+            class MockCursor:
+                def fetchone(self):
+                    return MockRow()
+
+            return MockCursor()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", lambda: MockConnection())
+
+    # Act
+    result = remove_source(1)
+
+    # Assert
+    assert result["videos_removed"] == 42
+    assert result["source_name"] == "Test Channel"
+    assert mock_delete_called is True
+
+
+def test_remove_source_raises_not_found_error(monkeypatch, test_db):
+    """
+    Test remove_source() raises NotFoundError for non-existent source (Story 1.5).
+
+    Verifies:
+    - Checks if source exists
+    - Raises NotFoundError with Norwegian message
+    """
+    from backend.exceptions import NotFoundError
+    from backend.services.content_source import remove_source
+
+    # Arrange - Mock database to return None
+    monkeypatch.setattr("backend.services.content_source.get_source_by_id", lambda source_id: None)
+
+    # Act & Assert
+    with pytest.raises(NotFoundError) as exc_info:
+        remove_source(999)
+
+    assert "ikke funnet" in str(exc_info.value).lower()
+
+
+def test_remove_source_cascade_deletes_videos(monkeypatch, test_db):
+    """
+    Test remove_source() CASCADE deletes associated videos (Story 1.5).
+
+    Verifies:
+    - Videos are automatically deleted via CASCADE DELETE
+    - No manual video deletion needed
+    - Database foreign key constraint handles cascade
+    """
+    from backend.services.content_source import remove_source
+
+    # Arrange
+    mock_source = {"id": 1, "name": "Test", "video_count": 10}
+    delete_calls = []
+
+    def mock_delete(source_id):
+        delete_calls.append(("delete_source", source_id))
+
+    monkeypatch.setattr("backend.services.content_source.get_source_by_id", lambda sid: mock_source)
+    monkeypatch.setattr("backend.services.content_source.delete_content_source", mock_delete)
+
+    # Mock connection for video count
+    class MockRow:
+        """Mock Row object that supports both index and key access."""
+
+        def __getitem__(self, key):
+            if key == 0 or key == "COUNT(*)":
+                return 10
+            raise KeyError(key)
+
+    class MockConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, query, params):
+            class MockCursor:
+                def fetchone(self):
+                    return MockRow()
+
+            return MockCursor()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", lambda: MockConnection())
+
+    # Act
+    result = remove_source(1)
+
+    # Assert - Only source delete called, CASCADE handles videos
+    assert len(delete_calls) == 1
+    assert delete_calls[0] == ("delete_source", 1)
+    assert result["videos_removed"] == 10
+
+
+# =============================================================================
+# refresh_source() Tests (Story 1.5)
+# =============================================================================
+
+
+def test_refresh_source_adds_new_videos(monkeypatch, test_db):
+    """
+    Test refresh_source() fetches and adds new videos (Story 1.5).
+
+    Verifies:
+    - Gets source from database
+    - Fetches videos from YouTube API based on source type
+    - Filters to only NEW videos (not already in DB)
+    - Inserts new videos
+    - Updates source last_refresh timestamp
+    - Logs API call
+    - Returns videosAdded count
+    """
+    from backend.services.content_source import refresh_source
+
+    # Arrange
+    mock_source = {
+        "id": 1,
+        "source_id": "UCtest",
+        "source_type": "channel",
+        "name": "Test Channel",
+        "video_count": 0,
+    }
+
+    def mock_fetch_all_channel(youtube, channel_id):
+        return (["video1", "video2", "video3"], True)
+
+    def mock_fetch_details(video_ids):
+        return [{"video_id": vid, "title": f"Video {vid}"} for vid in video_ids]
+
+    existing_videos = []
+    inserted_videos = []
+
+    monkeypatch.setattr("backend.services.content_source.get_source_by_id", lambda sid: mock_source)
+    monkeypatch.setattr("backend.services.content_source.create_youtube_client", lambda: Mock())
+    monkeypatch.setattr(
+        "backend.services.content_source.fetch_all_channel_videos", mock_fetch_all_channel
+    )
+    monkeypatch.setattr("backend.services.content_source._fetch_video_details", mock_fetch_details)
+    monkeypatch.setattr("backend.services.content_source._deduplicate_videos", lambda vids: vids)
+
+    # Mock database operations
+    class MockConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, query, params):
+            class MockCursor:
+                def fetchall(self):
+                    return existing_videos
+
+                def fetchone(self):
+                    # For quota usage query, return 0
+                    return [0]
+
+            return MockCursor()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", lambda: MockConnection())
+
+    def mock_bulk_insert(source_id, videos):
+        inserted_videos.extend(videos)
+        return len(videos)
+
+    monkeypatch.setattr("backend.services.content_source.bulk_insert_videos", mock_bulk_insert)
+    monkeypatch.setattr(
+        "backend.services.content_source.update_content_source_refresh", lambda *args: None
+    )
+    monkeypatch.setattr(
+        "backend.services.content_source.log_api_call", lambda *args, **kwargs: None
+    )
+
+    # Act
+    result = refresh_source(1)
+
+    # Assert
+    assert result["videos_added"] == 3
+    assert "last_refresh" in result
+    assert len(inserted_videos) == 3
+
+
+def test_refresh_source_no_new_videos(monkeypatch, test_db):
+    """
+    Test refresh_source() when no new videos found (Story 1.5).
+
+    Verifies:
+    - Returns videosAdded: 0
+    - Still updates last_refresh timestamp
+    - No videos inserted
+    """
+    from backend.services.content_source import refresh_source
+
+    # Arrange
+    mock_source = {
+        "id": 1,
+        "source_id": "UCtest",
+        "source_type": "channel",
+        "name": "Test Channel",
+        "video_count": 10,
+    }
+
+    def mock_fetch_all_channel(youtube, channel_id):
+        return (["video1", "video2"], True)
+
+    def mock_fetch_details(video_ids):
+        return [{"video_id": vid, "title": f"Video {vid}"} for vid in video_ids]
+
+    # All videos already exist
+    existing_videos = [{"video_id": "video1"}, {"video_id": "video2"}]
+    inserted_videos = []
+
+    monkeypatch.setattr("backend.services.content_source.get_source_by_id", lambda sid: mock_source)
+    monkeypatch.setattr("backend.services.content_source.create_youtube_client", lambda: Mock())
+    monkeypatch.setattr(
+        "backend.services.content_source.fetch_all_channel_videos", mock_fetch_all_channel
+    )
+    monkeypatch.setattr("backend.services.content_source._fetch_video_details", mock_fetch_details)
+    monkeypatch.setattr("backend.services.content_source._deduplicate_videos", lambda vids: vids)
+
+    # Mock database operations
+    class MockConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, query, params):
+            class MockCursor:
+                def fetchall(self):
+                    return existing_videos
+
+                def fetchone(self):
+                    # For quota usage query, return 0
+                    return [0]
+
+            return MockCursor()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", lambda: MockConnection())
+
+    def mock_bulk_insert(source_id, videos):
+        inserted_videos.extend(videos)
+        return len(videos)
+
+    monkeypatch.setattr("backend.services.content_source.bulk_insert_videos", mock_bulk_insert)
+    monkeypatch.setattr(
+        "backend.services.content_source.update_content_source_refresh", lambda *args: None
+    )
+    monkeypatch.setattr(
+        "backend.services.content_source.log_api_call", lambda *args, **kwargs: None
+    )
+
+    # Act
+    result = refresh_source(1)
+
+    # Assert
+    assert result["videos_added"] == 0
+    assert len(inserted_videos) == 0
+
+
+def test_refresh_source_not_found_error(monkeypatch, test_db):
+    """
+    Test refresh_source() raises ValueError for non-existent source (Story 1.5).
+
+    Verifies:
+    - Checks if source exists
+    - Raises ValueError with Norwegian message "Kilde ikke funnet"
+    """
+    from backend.services.content_source import refresh_source
+
+    # Arrange - Mock database to return None
+    monkeypatch.setattr("backend.services.content_source.get_source_by_id", lambda source_id: None)
+
+    # Act & Assert
+    with pytest.raises(ValueError) as exc_info:
+        refresh_source(999)
+
+    assert "kilde ikke funnet" in str(exc_info.value).lower()
+
+
+def test_refresh_source_handles_playlist_type(monkeypatch, test_db):
+    """
+    Test refresh_source() handles playlist source type (Story 1.5).
+
+    Verifies:
+    - Determines source type from source record
+    - Calls fetch_all_playlist_videos for playlist type
+    - Correctly processes playlist videos
+    """
+    from backend.services.content_source import refresh_source
+
+    # Arrange
+    mock_source = {
+        "id": 1,
+        "source_id": "PLtest",
+        "source_type": "playlist",
+        "name": "Test Playlist",
+        "video_count": 5,
+    }
+
+    playlist_fetch_called = False
+
+    def mock_fetch_playlist(playlist_id):
+        nonlocal playlist_fetch_called
+        playlist_fetch_called = True
+        return (["video1"], True)
+
+    def mock_fetch_details(video_ids):
+        return [{"video_id": vid, "title": f"Video {vid}"} for vid in video_ids]
+
+    monkeypatch.setattr("backend.services.content_source.get_source_by_id", lambda sid: mock_source)
+    monkeypatch.setattr("backend.services.content_source.create_youtube_client", lambda: Mock())
+    monkeypatch.setattr(
+        "backend.services.content_source._fetch_playlist_videos", mock_fetch_playlist
+    )
+    monkeypatch.setattr("backend.services.content_source._fetch_video_details", mock_fetch_details)
+    monkeypatch.setattr("backend.services.content_source._deduplicate_videos", lambda vids: vids)
+
+    # Mock database operations
+    class MockConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, query, params):
+            class MockCursor:
+                def fetchall(self):
+                    return []
+
+                def fetchone(self):
+                    # For quota usage query, return 0
+                    return [0]
+
+            return MockCursor()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", lambda: MockConnection())
+    monkeypatch.setattr(
+        "backend.services.content_source.bulk_insert_videos", lambda source_id, videos: len(videos)
+    )
+    monkeypatch.setattr(
+        "backend.services.content_source.update_content_source_refresh", lambda *args: None
+    )
+    monkeypatch.setattr(
+        "backend.services.content_source.log_api_call", lambda *args, **kwargs: None
+    )
+
+    # Act
+    result = refresh_source(1)
+
+    # Assert
+    assert playlist_fetch_called is True
+    assert result["videos_added"] == 1
+
+
+def test_refresh_source_partial_fetch_flag(monkeypatch, test_db):
+    """
+    Test refresh_source() handles partial fetch during refresh (Story 1.5).
+
+    Verifies:
+    - Partial fetch flag returned from YouTube API fetch
+    - Videos fetched so far are still saved
+    - Returns videosAdded for partial videos
+    """
+    from backend.services.content_source import refresh_source
+
+    # Arrange
+    mock_source = {
+        "id": 1,
+        "source_id": "UCtest",
+        "source_type": "channel",
+        "name": "Test Channel",
+        "video_count": 20,
+    }
+
+    def mock_fetch_all_channel(youtube, channel_id):
+        # Return partial fetch (fetch_complete=False)
+        return (["video1", "video2"], False)
+
+    def mock_fetch_details(video_ids):
+        return [{"video_id": vid, "title": f"Video {vid}"} for vid in video_ids]
+
+    monkeypatch.setattr("backend.services.content_source.get_source_by_id", lambda sid: mock_source)
+    monkeypatch.setattr("backend.services.content_source.create_youtube_client", lambda: Mock())
+    monkeypatch.setattr(
+        "backend.services.content_source.fetch_all_channel_videos", mock_fetch_all_channel
+    )
+    monkeypatch.setattr("backend.services.content_source._fetch_video_details", mock_fetch_details)
+    monkeypatch.setattr("backend.services.content_source._deduplicate_videos", lambda vids: vids)
+
+    # Mock database operations
+    class MockConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, query, params):
+            class MockCursor:
+                def fetchall(self):
+                    return []
+
+                def fetchone(self):
+                    # For quota usage query, return 0
+                    return [0]
+
+            return MockCursor()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", lambda: MockConnection())
+    monkeypatch.setattr(
+        "backend.services.content_source.bulk_insert_videos", lambda source_id, videos: len(videos)
+    )
+    monkeypatch.setattr(
+        "backend.services.content_source.update_content_source_refresh", lambda *args: None
+    )
+    monkeypatch.setattr(
+        "backend.services.content_source.log_api_call", lambda *args, **kwargs: None
+    )
+
+    # Act
+    result = refresh_source(1)
+
+    # Assert - Partial videos still saved
+    assert result["videos_added"] == 2

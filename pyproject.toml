@@ -15,6 +15,7 @@ dependencies = [
     "python-multipart==0.0.20",
     "isodate==0.7.2",
     "python-dotenv==1.1.1",
+    "slowapi==0.1.9",  # Rate limiting for FastAPI
 ]
 
 [project.optional-dependencies]

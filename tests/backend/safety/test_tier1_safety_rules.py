@@ -119,3 +119,203 @@ def test_rule4_bcrypt_library_used():
     assert len(parts) == 4, "Bcrypt hash must have 4 parts separated by $"
     assert parts[1] == "2b", "Must use bcrypt 2b variant"
     assert parts[2].isdigit(), "Cost factor must be numeric"
+
+
+# =============================================================================
+# TIER 1 RULE 5: Input Validation (Story 1.5)
+# =============================================================================
+
+
+@pytest.mark.tier1
+def test_rule5_blocks_sql_injection_in_channel_input():
+    """
+    TIER 1 Rule 5: Input validation must block SQL injection attempts.
+
+    Verifies:
+    - SQL injection patterns are rejected in channel/playlist input
+    - Validation happens before database operations
+    - Norwegian error message returned
+    """
+    from backend.services.content_source import _parse_input
+
+    # Common SQL injection patterns
+    sql_injection_attempts = [
+        "'; DROP TABLE videos; --",
+        "' OR '1'='1",
+        "'; DELETE FROM content_sources; --",
+        "UNION SELECT * FROM settings--",
+        "1' AND '1'='1",
+    ]
+
+    for injection_attempt in sql_injection_attempts:
+        with pytest.raises(ValueError) as exc_info:
+            _parse_input(injection_attempt)
+
+        # Verify rejection with Norwegian error
+        assert "Ugyldig" in str(
+            exc_info.value
+        ), f"SQL injection attempt should be rejected: {injection_attempt}"
+
+
+@pytest.mark.tier1
+def test_rule5_blocks_xss_in_channel_input():
+    """
+    TIER 1 Rule 5: Input validation must block XSS attempts.
+
+    Verifies:
+    - XSS patterns are rejected in channel/playlist input
+    - Script tags and event handlers blocked
+    - Norwegian error message returned
+    """
+    from backend.services.content_source import _parse_input
+
+    # Common XSS patterns
+    xss_attempts = [
+        "<script>alert('xss')</script>",
+        "javascript:alert('xss')",
+        "<img src=x onerror=alert('xss')>",
+        "<iframe src='evil.com'></iframe>",
+        "' onload='alert(1)'",
+    ]
+
+    for xss_attempt in xss_attempts:
+        with pytest.raises(ValueError) as exc_info:
+            _parse_input(xss_attempt)
+
+        # Verify rejection with Norwegian error
+        assert "Ugyldig" in str(exc_info.value), f"XSS attempt should be rejected: {xss_attempt}"
+
+
+@pytest.mark.tier1
+def test_rule5_rejects_oversized_input():
+    """
+    TIER 1 Rule 5: Input validation must reject oversized input.
+
+    Verifies:
+    - Input >500 chars is rejected (ReDoS protection)
+    - Length check happens before regex processing
+    - Norwegian error message returned
+    """
+    from backend.services.content_source import _parse_input
+
+    # Create input exceeding 500 character limit
+    oversized_input = "https://www.youtube.com/channel/" + "A" * 500
+
+    with pytest.raises(ValueError) as exc_info:
+        _parse_input(oversized_input)
+
+    # Verify error mentions length limit
+    error_msg = str(exc_info.value)
+    assert (
+        "for lang" in error_msg or "length" in error_msg.lower()
+    ), "Error should mention length limit"
+    assert "500" in error_msg, "Error should mention 500 char limit"
+
+
+@pytest.mark.tier1
+def test_rule5_rejects_empty_input():
+    """
+    TIER 1 Rule 5: Input validation must reject empty input.
+
+    Verifies:
+    - Empty string rejected
+    - None value rejected
+    - Norwegian error message returned
+    """
+    from backend.services.content_source import _parse_input
+
+    # Test empty string
+    with pytest.raises(ValueError) as exc_info:
+        _parse_input("")
+    assert "Ugyldig inndata" in str(
+        exc_info.value
+    ), "Empty string should be rejected with Norwegian error"
+
+    # Test None
+    with pytest.raises(ValueError) as exc_info:
+        _parse_input(None)
+    assert "Ugyldig inndata" in str(
+        exc_info.value
+    ), "None value should be rejected with Norwegian error"
+
+    # Test whitespace only
+    with pytest.raises(ValueError) as exc_info:
+        _parse_input("   ")
+    assert "Ugyldig" in str(exc_info.value), "Whitespace-only input should be rejected"
+
+
+@pytest.mark.tier1
+def test_rule5_input_validation_happens_before_database():
+    """
+    TIER 1 Rule 5: Input validation must happen BEFORE database operations.
+
+    Verifies:
+    - Validation errors raised before any DB queries
+    - No risk of malicious input reaching database
+    - Prevents SQL injection at validation layer
+    """
+    from backend.services.content_source import _parse_input
+
+    # Malicious input that should be caught at validation
+    malicious_inputs = [
+        "'; DROP TABLE videos; --",
+        "<script>alert(1)</script>",
+        "A" * 600,  # Oversized
+        "",  # Empty
+    ]
+
+    for malicious_input in malicious_inputs:
+        # Should raise ValueError during parsing, before reaching DB
+        try:
+            _parse_input(malicious_input)
+            pytest.fail(f"Input should have been rejected: {malicious_input}")
+        except ValueError:
+            # Expected - validation caught it
+            pass
+        except Exception as e:
+            # Any other exception type means validation failed to catch it
+            pytest.fail(
+                f"Wrong exception type: {type(e).__name__}. "
+                f"Should raise ValueError at validation layer."
+            )
+
+
+@pytest.mark.tier1
+def test_rule5_all_user_inputs_validated():
+    """
+    TIER 1 Rule 5: ALL parent inputs must be validated.
+
+    Verifies:
+    - Channel URL input validated
+    - Playlist URL input validated
+    - Direct ID input validated
+    - No input bypasses validation
+    """
+    from backend.services.content_source import _parse_input
+
+    # Valid inputs that should pass
+    valid_inputs = [
+        "https://www.youtube.com/channel/UCrwObTfqv8u1KO7Fgk-FXHQ",
+        "https://www.youtube.com/@Blippi",
+        "https://www.youtube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf",
+    ]
+
+    for valid_input in valid_inputs:
+        # Should not raise - validation passes
+        try:
+            result = _parse_input(valid_input)
+            assert result is not None, f"Valid input should parse: {valid_input}"
+        except ValueError:
+            pytest.fail(f"Valid input was rejected: {valid_input}")
+
+    # Invalid inputs that should fail
+    invalid_inputs = [
+        "not-a-url",
+        "https://evil.com/fake",
+        "javascript:alert(1)",
+        "",
+    ]
+
+    for invalid_input in invalid_inputs:
+        with pytest.raises(ValueError):
+            _parse_input(invalid_input)

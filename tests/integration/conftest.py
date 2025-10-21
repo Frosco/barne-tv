@@ -4,6 +4,11 @@ Integration test fixtures.
 Provides pytest fixtures for integration testing with real YouTube API.
 """
 
+import os
+
+# Disable rate limiting for all integration tests (must be set before FastAPI imports)
+os.environ["TESTING"] = "true"
+
 import sqlite3
 from pathlib import Path
 import pytest
