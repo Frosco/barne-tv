@@ -360,7 +360,7 @@ def add_source(request: Request, source_data: AddSourceRequest):
 
 @router.get("/admin/sources")
 @limiter.limit("100/minute")
-def list_sources(request: Request):
+def list_sources(request: Request, response: Response):
     """
     List all content sources (channels and playlists).
 
