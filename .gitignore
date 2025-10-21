@@ -84,3 +84,5 @@ logs/
 
 # Application specific
 /opt/youtube-viewer/data/
+
+.playwright-mcp
