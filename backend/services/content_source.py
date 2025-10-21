@@ -26,10 +26,14 @@ from googleapiclient.errors import HttpError
 from backend.config import YOUTUBE_API_KEY
 from backend.db.queries import (
     bulk_insert_videos,
+    delete_content_source,
+    get_all_content_sources,
     get_daily_quota_usage,
+    get_source_by_id,
     get_source_by_source_id,
     insert_content_source,
     log_api_call,
+    update_content_source_refresh,
 )
 from backend.exceptions import QuotaExceededError
 
@@ -859,6 +863,7 @@ def add_source(source_input: str) -> dict:
     # Step 9: Return success response
     return {
         "success": True,
+        "id": content_source_id,  # Database primary key for frontend
         "source_id": source_id,
         "source_type": source_type,
         "name": source_name,
@@ -867,18 +872,234 @@ def add_source(source_input: str) -> dict:
     }
 
 
-def fetch_videos(source_id: str, source_type: str) -> list[dict]:
+def fetch_all_playlist_videos(youtube, playlist_id: str) -> tuple[list[str], bool]:
     """
-    Fetch all videos from a YouTube source.
+    Public wrapper for _fetch_playlist_videos that matches the channel fetch API.
 
     Args:
-        source_id: YouTube channel ID or playlist ID
-        source_type: Either 'channel' or 'playlist'
+        youtube: YouTube API client (for API consistency, though _fetch_playlist_videos creates its own)
+        playlist_id: YouTube playlist ID
 
     Returns:
-        List of video dictionaries with metadata
+        Tuple of (video_ids, fetch_complete) where:
+        - video_ids: List of all video IDs fetched
+        - fetch_complete: True if all videos fetched, False if partial
 
-    TIER 2 Rule 8: Must use YouTube API retry helper
+    Example:
+        youtube = create_youtube_client()
+        video_ids, complete = fetch_all_playlist_videos(youtube, "PLrAXtm...")
     """
-    # Placeholder implementation - will be completed in future story
-    return []
+    return _fetch_playlist_videos(playlist_id)
+
+
+def list_sources() -> list[dict]:
+    """
+    List all content sources with camelCase keys for frontend.
+
+    Converts database snake_case to JavaScript camelCase convention.
+
+    TIER 3 Rule 14: Return structure matches API specification.
+
+    Returns:
+        List of source dicts with camelCase keys:
+        {
+            'id': 1,
+            'sourceId': 'UCrwObTfqv8u1KO7Fgk-FXHQ',
+            'sourceType': 'channel',
+            'name': 'Blippi',
+            'videoCount': 487,
+            'lastRefresh': '2025-10-19T10:15:00Z',
+            'fetchMethod': 'api',
+            'addedAt': '2025-10-19T10:15:00Z'
+        }
+
+    Example:
+        sources = list_sources()
+        for source in sources:
+            print(f"{source['name']}: {source['videoCount']} videos")
+    """
+    sources = get_all_content_sources()
+
+    # Convert snake_case to camelCase for frontend
+    camel_sources = []
+    for source in sources:
+        camel_sources.append(
+            {
+                "id": source["id"],
+                "sourceId": source["source_id"],
+                "sourceType": source["source_type"],
+                "name": source["name"],
+                "videoCount": source["video_count"],
+                "lastRefresh": source["last_refresh"],
+                "fetchMethod": source["fetch_method"],
+                "addedAt": source["added_at"],
+            }
+        )
+
+    return camel_sources
+
+
+def remove_source(source_id: int) -> dict:
+    """
+    Remove content source and all its videos.
+
+    CASCADE DELETE automatically removes videos due to foreign key constraint.
+    Returns info about what was deleted for user confirmation message.
+
+    TIER 1 Rules Applied:
+    - Rule 6: SQL placeholders via delete_content_source()
+
+    Args:
+        source_id: Primary key ID of content_sources table
+
+    Returns:
+        Dict with deletion info:
+        {
+            'success': True,
+            'source_name': 'Blippi',
+            'videos_removed': 487
+        }
+
+    Raises:
+        ValueError: If source not found (Norwegian message for user)
+
+    Example:
+        result = remove_source(3)
+        print(f"Removed {result['videos_removed']} videos from {result['source_name']}")
+    """
+    # Get source first to retrieve name and count videos
+    from backend.exceptions import NotFoundError
+
+    source = get_source_by_id(source_id)
+    if not source:
+        logger.warning(f"Attempted to remove non-existent source ID: {source_id}")
+        raise NotFoundError("Kilde ikke funnet")
+
+    source_name = source["name"]
+
+    # Count videos before deletion
+    from backend.db.queries import count_source_videos
+
+    videos_count = count_source_videos(source_id)
+
+    logger.info(f"Removing source {source_id} ({source_name}) with {videos_count} videos")
+
+    # Delete source (CASCADE removes videos automatically)
+    delete_content_source(source_id)
+
+    logger.info(f"Successfully removed source {source_id} and {videos_count} videos")
+
+    return {"success": True, "source_name": source_name, "videos_removed": videos_count}
+
+
+def refresh_source(source_id: int) -> dict:
+    """
+    Refresh existing content source by fetching new videos.
+
+    Compares fetched video IDs with existing videos in database,
+    inserts only NEW videos, and updates source metadata.
+
+    TIER 1 Rules Applied:
+    - Rule 3: UTC timestamps for all operations
+    - Rule 6: SQL placeholders via database functions
+
+    Args:
+        source_id: Primary key ID of content_sources table
+
+    Returns:
+        Dict with refresh results:
+        {
+            'success': True,
+            'videos_added': 12,
+            'videos_updated': 0,
+            'last_refresh': '2025-10-19T14:30:00Z'
+        }
+
+    Raises:
+        ValueError: If source not found (Norwegian message)
+        QuotaExceededError: If YouTube API quota exceeded
+        HttpError: Other YouTube API errors
+
+    Example:
+        result = refresh_source(3)
+        print(f"Added {result['videos_added']} new videos")
+    """
+    # TIER 1 Rule 3: Use UTC for all timestamps
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Step 1: Get existing source
+    source = get_source_by_id(source_id)
+    if not source:
+        logger.warning(f"Attempted to refresh non-existent source ID: {source_id}")
+        raise ValueError("Kilde ikke funnet")
+
+    logger.info(f"Refreshing source {source_id} ({source['name']})")
+
+    # Step 2: Fetch video IDs based on source type
+    source_type = source["source_type"]
+    youtube_source_id = source["source_id"]
+
+    if source_type == "channel":
+        youtube = create_youtube_client()
+        video_ids, fetch_complete = fetch_all_channel_videos(youtube, youtube_source_id)
+    elif source_type == "playlist":
+        video_ids, fetch_complete = _fetch_playlist_videos(youtube_source_id)
+    else:
+        raise ValueError(f"Ugyldig kildetype: {source_type}")
+
+    logger.info(f"Fetched {len(video_ids)} video IDs during refresh (complete: {fetch_complete})")
+
+    # Step 3: Query existing video IDs for this source
+    from backend.db.queries import get_source_video_ids
+
+    existing_video_ids = get_source_video_ids(source_id)
+
+    logger.info(f"Source currently has {len(existing_video_ids)} videos in database")
+
+    # Step 4: Filter to only NEW videos
+    new_video_ids = [vid for vid in video_ids if vid not in existing_video_ids]
+
+    if not new_video_ids:
+        logger.info("No new videos found during refresh")
+        # Update last_refresh timestamp even if no new videos
+        update_content_source_refresh(source_id, now, source["video_count"])
+        return {
+            "success": True,
+            "videos_added": 0,
+            "videos_updated": 0,
+            "last_refresh": now,
+        }
+
+    logger.info(f"Found {len(new_video_ids)} new videos to add")
+
+    # Step 5: Fetch details for new videos
+    new_videos = _fetch_video_details(new_video_ids)
+
+    if not new_videos:
+        logger.warning("Failed to fetch details for new videos")
+        return {
+            "success": True,
+            "videos_added": 0,
+            "videos_updated": 0,
+            "last_refresh": now,
+        }
+
+    # Step 6: Deduplicate new videos
+    new_videos = _deduplicate_videos(new_videos)
+
+    # Step 7: Bulk insert new videos
+    videos_added = bulk_insert_videos(source_id, new_videos)
+    logger.info(f"Inserted {videos_added} new videos")
+
+    # Step 8: Update source metadata
+    new_total = source["video_count"] + videos_added
+    update_content_source_refresh(source_id, now, new_total)
+
+    logger.info(f"Refresh complete for source {source_id}: {videos_added} new videos added")
+
+    return {
+        "success": True,
+        "videos_added": videos_added,
+        "videos_updated": 0,
+        "last_refresh": now,
+    }
