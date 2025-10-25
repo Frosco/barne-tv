@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Video Grid - Safe YouTube Viewer{% endblock %}
+
+{% block content %}
+<div class="child-container">
+  {# Mascot in corner - using owl_neutral.png #}
+  <div class="mascot-container">
+    <img
+      src="/images/mascot/owl_neutral.png"
+      alt=""
+      class="mascot"
+      data-mascot-state="neutral"
+    >
+  </div>
+
+  {# Main video grid container #}
+  <main class="grid-main">
+    <div class="video-grid" data-grid role="list">
+      {# Video cards will be dynamically inserted here by grid.js #}
+      {# Loading state shown initially #}
+      <div class="grid-loading" data-loading>
+        <p class="loading-message">Laster videoer...</p>
+      </div>
+    </div>
+
+    {# Error state container (hidden by default) #}
+    <div class="grid-error" data-error hidden>
+      <div class="error-content">
+        <img
+          src="/images/mascot/owl_confused.png"
+          alt=""
+          class="error-mascot"
+        >
+        <p class="error-message" data-error-message>Noe gikk galt</p>
+        <button class="btn-retry" data-retry>Prøv igjen</button>
+      </div>
+    </div>
+  </main>
+
+  {# Daily limit indicator (optional - for future Story 2.3) #}
+  <div class="limit-indicator" data-limit-indicator hidden>
+    <div class="limit-content">
+      <span class="limit-text" data-limit-text></span>
+    </div>
+  </div>
+</div>
+{% endblock %}
