@@ -21,9 +21,9 @@ from backend.auth import (
     verify_password,
 )
 from backend.db.queries import get_setting
-from backend.exceptions import QuotaExceededError, NotFoundError
+from backend.exceptions import QuotaExceededError, NotFoundError, NoVideosAvailableError
 from backend.middleware import limiter
-from backend.services import content_source
+from backend.services import content_source, viewing_session
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -574,4 +574,120 @@ def refresh_source(request: Request, source_id: int):
         logger.error(f"Unexpected error refreshing source {source_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+# =============================================================================
+# CHILD VIEWING ROUTES (Story 2.1)
+# =============================================================================
+
+
+@router.get("/child/grid", response_class=HTMLResponse)
+@limiter.limit("100/minute")
+def child_grid_page(request: Request):
+    """
+    Serve child video grid page.
+
+    No authentication required - child interface is public.
+
+    Args:
+        request: FastAPI Request object for accessing app state
+
+    Returns:
+        HTML response with child grid template
+    """
+    from backend.config import DEBUG
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "child/grid.html",
+        {
+            "request": request,
+            "interface": "child",
+            "dev_mode": DEBUG,
+        },
+    )
+
+
+@router.get("/api/videos")
+@limiter.limit("100/minute")
+def get_videos(request: Request, response: Response, count: int = 9):
+    """
+    Fetch videos for the child's video grid.
+
+    Uses weighted random selection (60-80% novelty, 20-40% favorites).
+    Returns videos and daily limit state.
+
+    TIER 1 Rules Applied:
+    - Rule 1: Videos filtered for banned/unavailable (via viewing_session service)
+    - Rule 2: Time limits exclude manual_play/grace_play (via get_daily_limit)
+    - Rule 3: UTC timezone for all date operations (via service layer)
+    - Rule 5: Validate input (count range 4-15)
+
+    TIER 2 Rules Applied:
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error messages for users.
+
+    Args:
+        request: FastAPI Request object (for rate limiting)
+        count: Number of videos to return (default 9, range 4-15)
+
+    Returns:
+        Success (200): {
+            "videos": [
+                {
+                    "videoId": "dQw4w9WgXcQ",
+                    "title": "Excavator Song for Kids",
+                    "youtubeChannelName": "Blippi",
+                    "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+                    "durationSeconds": 245
+                }
+            ],
+            "dailyLimit": {
+                "date": "2025-01-03",
+                "minutesWatched": 15,
+                "minutesRemaining": 15,
+                "currentState": "normal",
+                "resetTime": "2025-01-04T00:00:00Z"
+            }
+        }
+        Error (400): {"error": "Invalid parameter", "message": "..."}
+        Error (503): {"error": "No videos available", "message": "Ingen videoer tilgjengelig..."}
+
+    Example:
+        GET /api/videos?count=9
+        Response: {"videos": [...], "dailyLimit": {...}}
+    """
+    # TIER 1 Rule 5: Validate input parameter
+    if not (4 <= count <= 15):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid parameter",
+                "message": "Antall videoer må være mellom 4 og 15",
+            },
+        )
+
+    try:
+        # Call service layer to get videos and daily limit
+        videos, daily_limit = viewing_session.get_videos_for_grid(count)
+
+        # TIER 2 Rule 12: Consistent response structure
+        return {"videos": videos, "dailyLimit": daily_limit}
+
+    except NoVideosAvailableError as e:
+        # No videos available (empty database or all filtered out)
+        # TIER 3 Rule 14: Norwegian error message
+        logger.warning(f"No videos available for grid: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"error": "No videos available", "message": str(e)},
+        )
+
+    except Exception as e:
+        # Generic error handler
+        logger.error(f"Unexpected error fetching videos for grid: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
         )

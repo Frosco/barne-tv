@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi.errors import RateLimitExceeded
 
@@ -97,6 +98,16 @@ if DEBUG:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# Mount static files directory (for built frontend assets and images)
+STATIC_DIR = Path(__file__).parent.parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# Mount frontend public directory (for images in development)
+PUBLIC_DIR = Path(__file__).parent.parent / "frontend" / "public"
+if PUBLIC_DIR.exists():
+    app.mount("/images", StaticFiles(directory=str(PUBLIC_DIR / "images")), name="images")
 
 # Include API routes
 app.include_router(router)

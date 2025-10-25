@@ -12,6 +12,7 @@ Story 1.5 - Channel Management (QA Fix)
 """
 
 import logging
+import os
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -20,7 +21,6 @@ logger = logging.getLogger(__name__)
 # Create limiter instance
 # Uses IP address as the key for rate limiting
 # Note: Disabled in tests via TESTING environment variable
-import os
 
 TESTING = os.getenv("TESTING", "false").lower() == "true"
 
