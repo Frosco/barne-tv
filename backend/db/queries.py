@@ -408,11 +408,146 @@ def get_source_video_ids(content_source_id: int) -> set[str]:
 
 
 # =============================================================================
+# VIDEO SELECTION (Story 2.1)
+# =============================================================================
+
+
+def get_available_videos(
+    exclude_banned: bool = True, max_duration_seconds: int | None = None
+) -> list[dict]:
+    """
+    Fetch available videos with optional filtering.
+
+    TIER 1 Rules Applied:
+    - Rule 1: ALWAYS filter banned and unavailable videos
+    - Rule 6: Always use SQL placeholders (never string formatting)
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        exclude_banned: If True, filter out banned videos (default True)
+        max_duration_seconds: If provided, filter videos by maximum duration (for wind-down mode)
+
+    Returns:
+        List of video dicts with camelCase keys for frontend consistency
+
+    Example:
+        # Get all available videos
+        videos = get_available_videos()
+
+        # Get available videos for wind-down mode (max 5 minutes)
+        wind_down_videos = get_available_videos(max_duration_seconds=300)
+    """
+    # TIER 1 Rule 1: ALWAYS filter unavailable videos
+    query = """
+        SELECT video_id, title, youtube_channel_name, thumbnail_url, duration_seconds
+        FROM videos
+        WHERE is_available = 1
+    """
+
+    params = []
+
+    # TIER 1 Rule 1: ALWAYS filter banned videos when exclude_banned=True
+    if exclude_banned:
+        query += " AND video_id NOT IN (SELECT video_id FROM banned_videos)"
+
+    # Filter by duration for wind-down mode
+    if max_duration_seconds is not None:
+        query += " AND duration_seconds <= ?"
+        params.append(max_duration_seconds)
+
+    # TIER 2 Rule 7: Always use context manager
+    with get_connection() as conn:
+        # TIER 1 Rule 6: Use SQL placeholders
+        if params:
+            results = conn.execute(query, tuple(params)).fetchall()
+        else:
+            results = conn.execute(query).fetchall()
+
+        # Convert to list of dicts with camelCase keys for frontend
+        videos = []
+        for row in results:
+            videos.append(
+                {
+                    "videoId": row["video_id"],
+                    "title": row["title"],
+                    "youtubeChannelName": row["youtube_channel_name"],
+                    "thumbnailUrl": row["thumbnail_url"],
+                    "durationSeconds": row["duration_seconds"],
+                }
+            )
+
+        return videos
+
+
+def get_watch_history_for_date(date: str, conn=None) -> list[dict]:
+    """
+    Get watch history for a specific date, excluding manual_play and grace_play.
+
+    TIER 1 Rules Applied:
+    - Rule 2: ALWAYS exclude manual_play and grace_play from countable history
+    - Rule 3: Use UTC dates for all date operations
+    - Rule 6: Always use SQL placeholders
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        date: ISO date string in YYYY-MM-DD format (UTC)
+        conn: Optional database connection (for testing). If None, creates new connection.
+
+    Returns:
+        List of watch history dicts for the specified date
+
+    Example:
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date().isoformat()
+        history = get_watch_history_for_date(today)
+        minutes_watched = sum(h['duration_watched_seconds'] for h in history) / 60
+    """
+    # TIER 1 Rule 2: ALWAYS exclude manual_play and grace_play
+    # TIER 1 Rule 3: Use UTC dates
+    query = """
+        SELECT video_id, video_title, channel_name, watched_at,
+               duration_watched_seconds, completed
+        FROM watch_history
+        WHERE DATE(watched_at) = ?
+        AND manual_play = 0
+        AND grace_play = 0
+    """
+
+    # If connection provided (testing), use it directly
+    if conn is not None:
+        # TIER 1 Rule 6: Use SQL placeholders
+        results = conn.execute(query, (date,)).fetchall()
+    else:
+        # TIER 2 Rule 7: Always use context manager for production
+        with get_connection() as conn:
+            # TIER 1 Rule 6: Use SQL placeholders
+            results = conn.execute(query, (date,)).fetchall()
+
+    # Convert to list of dicts with camelCase keys
+    history = []
+    for row in results:
+        history.append(
+            {
+                "videoId": row["video_id"],
+                "videoTitle": row["video_title"],
+                "channelName": row["channel_name"],
+                "watchedAt": row["watched_at"],
+                "durationWatchedSeconds": row["duration_watched_seconds"],
+                "completed": bool(row["completed"]),
+            }
+        )
+
+    return history
+
+
+# =============================================================================
 # SETTINGS MANAGEMENT (Story 1.4)
 # =============================================================================
 
 
-def get_setting(key: str) -> str:
+def get_setting(key: str, conn=None) -> str:
     """
     Get a setting value from the settings table.
 
@@ -424,6 +559,7 @@ def get_setting(key: str) -> str:
 
     Args:
         key: Setting key (e.g., 'admin_password_hash', 'daily_limit_minutes')
+        conn: Optional database connection (for testing). If None, creates new connection.
 
     Returns:
         JSON-encoded string value from settings table
@@ -436,11 +572,17 @@ def get_setting(key: str) -> str:
         password_hash_json = get_setting('admin_password_hash')
         password_hash = json.loads(password_hash_json)  # Unwrap JSON encoding
     """
-    with get_connection() as conn:
+    if conn is not None:
         result = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         if result is None:
             raise KeyError(f"Setting '{key}' not found")
         return result[0]
+    else:
+        with get_connection() as conn:
+            result = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+            if result is None:
+                raise KeyError(f"Setting '{key}' not found")
+            return result[0]
 
 
 def set_setting(key: str, value: str) -> None:
