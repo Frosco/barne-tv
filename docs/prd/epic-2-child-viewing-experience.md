@@ -11,8 +11,8 @@ I want to see colorful video thumbnails in a grid,
 so that I can choose what to watch.
 
 **Acceptance Criteria:**
-1. HTML page displays 3x3 grid of video thumbnails (9 videos)
-2. Videos randomly selected from available content (from channels added in Story 1.5)
+1. HTML page displays a configurable grid of video thumbnails (default 9 videos, range 4-15 per parent setting)
+2. Videos selected using weighted random algorithm (60-80% novelty, 20-40% favorites based on watch history)
 3. Thumbnails are large and clickable (minimum 200x150px)
 4. Video titles appear below thumbnails in readable font
 5. Colorful, playful CSS styling with yellow accents (using design system from Story 1.Z)
@@ -21,6 +21,7 @@ so that I can choose what to watch.
 8. No navigation elements or text-based menus
 9. Mascot character visible in corner or header
 10. Grid refreshes when returning from video playback
+11. Grid size controlled by `grid_size` setting in admin interface (parent-configurable)
 
 ## Story 2.2: Video Playback
 
