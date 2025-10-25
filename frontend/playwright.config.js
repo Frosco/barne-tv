@@ -54,7 +54,7 @@ export default defineConfig({
 
   /* Run backend server before starting the tests */
   webServer: {
-    command: 'cd .. && uv run uvicorn backend.main:app --port 8000',
+    command: 'uv run uvicorn backend.main:app --port 8000',
     url: 'http://localhost:8000/health',
     reuseExistingServer: !process.env.CI, // Allow reuse in local development
     timeout: 120 * 1000, // 2 minutes to start server
