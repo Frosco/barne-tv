@@ -20,7 +20,11 @@ from backend.auth import (
     require_auth,
     verify_password,
 )
-from backend.db.queries import get_setting
+from backend.db.queries import (
+    get_setting,
+    insert_watch_history,
+    update_video_availability,
+)
 from backend.exceptions import QuotaExceededError, NotFoundError, NoVideosAvailableError
 from backend.middleware import limiter
 from backend.services import content_source, viewing_session
@@ -44,6 +48,20 @@ class AddSourceRequest(BaseModel):
     """Request model for adding content source."""
 
     input: str
+
+
+class WatchVideoRequest(BaseModel):
+    """Request model for logging video watch (Story 2.2)."""
+
+    videoId: str
+    completed: bool
+    durationWatchedSeconds: int
+
+
+class VideoUnavailableRequest(BaseModel):
+    """Request model for marking video unavailable (Story 2.2)."""
+
+    videoId: str
 
 
 # =============================================================================
@@ -688,6 +706,165 @@ def get_videos(request: Request, response: Response, count: int = 9):
     except Exception as e:
         # Generic error handler
         logger.error(f"Unexpected error fetching videos for grid: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+# =============================================================================
+# VIDEO PLAYBACK TRACKING (Story 2.2)
+# =============================================================================
+
+
+@router.post("/api/videos/watch")
+@limiter.limit("100/minute")
+def log_video_watch(request: Request, data: WatchVideoRequest):
+    """
+    Log that a video was watched (completed or partial).
+
+    Called when video ends naturally or when Back button pressed.
+    NOT called when ESC key pressed (cancelled playback).
+
+    TIER 1 Rules Applied:
+    - Rule 2: manual_play and grace_play default to false (normal child playback counts toward limit)
+    - Rule 3: UTC timestamp recorded server-side (insert_watch_history uses datetime.now(timezone.utc))
+    - Rule 5: Validate all inputs (videoId format, durationWatchedSeconds range)
+    - Rule 6: SQL placeholders used in database layer
+
+    TIER 2 Rules Applied:
+    - Rule 7: Context manager used in database layer
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error messages for users.
+
+    Args:
+        request: FastAPI Request object (for rate limiting)
+        data: WatchVideoRequest with videoId, completed, durationWatchedSeconds
+
+    Returns:
+        Success (200): {
+            "success": true,
+            "dailyLimit": {
+                "date": "2025-01-03",
+                "minutesWatched": 19,
+                "minutesRemaining": 11,
+                "currentState": "winddown",
+                "resetTime": "2025-01-04T00:00:00Z"
+            }
+        }
+        Error (400): {"error": "Invalid parameter", "message": "..."}
+        Error (500): {"error": "Internal error", "message": "Noe gikk galt"}
+
+    Example:
+        POST /api/videos/watch
+        Body: {"videoId": "dQw4w9WgXcQ", "completed": true, "durationWatchedSeconds": 212}
+        Response: {"success": true, "dailyLimit": {...}}
+    """
+    # TIER 1 Rule 5: Validate input parameters
+    if not data.videoId or len(data.videoId) != 11:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid parameter",
+                "message": "Video ID må være 11 tegn",
+            },
+        )
+
+    if data.durationWatchedSeconds < 0:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid parameter",
+                "message": "Varighet kan ikke være negativ",
+            },
+        )
+
+    try:
+        # Insert watch history record
+        # TIER 1 Rule 2: manual_play=False, grace_play=False for normal child playback
+        # TIER 1 Rule 3: UTC timestamp recorded server-side
+        insert_watch_history(
+            video_id=data.videoId,
+            completed=data.completed,
+            duration_watched_seconds=data.durationWatchedSeconds,
+            manual_play=False,
+            grace_play=False,
+        )
+
+        # Get updated daily limit state
+        daily_limit = viewing_session.get_daily_limit()
+
+        # TIER 2 Rule 12: Consistent response structure
+        return {"success": True, "dailyLimit": daily_limit}
+
+    except Exception as e:
+        # Generic error handler
+        # TIER 3 Rule 14: Norwegian error message
+        logger.error(f"Unexpected error logging video watch: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.post("/api/videos/unavailable")
+@limiter.limit("100/minute")
+def mark_video_unavailable(request: Request, data: VideoUnavailableRequest):
+    """
+    Mark video as unavailable globally (all duplicate instances).
+
+    Called when YouTube returns error codes 100 or 150 (video not found/embedding restricted).
+
+    TIER 1 Rules Applied:
+    - Rule 1: Updates ALL duplicate video instances globally (is_available flag)
+    - Rule 5: Validate input (videoId format)
+    - Rule 6: SQL placeholders used in database layer
+
+    TIER 2 Rules Applied:
+    - Rule 7: Context manager used in database layer
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error messages for users.
+
+    Args:
+        request: FastAPI Request object (for rate limiting)
+        data: VideoUnavailableRequest with videoId
+
+    Returns:
+        Success (200): {"success": true}
+        Error (400): {"error": "Invalid parameter", "message": "..."}
+        Error (500): {"error": "Internal error", "message": "Noe gikk galt"}
+
+    Example:
+        POST /api/videos/unavailable
+        Body: {"videoId": "dQw4w9WgXcQ"}
+        Response: {"success": true}
+    """
+    # TIER 1 Rule 5: Validate input parameter
+    if not data.videoId or len(data.videoId) != 11:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid parameter",
+                "message": "Video ID må være 11 tegn",
+            },
+        )
+
+    try:
+        # Mark video unavailable globally
+        # TIER 1 Rule 1: Updates ALL duplicate instances
+        rows_updated = update_video_availability(video_id=data.videoId, is_available=False)
+
+        logger.info(
+            f"Marked video {data.videoId} as unavailable ({rows_updated} instances updated)"
+        )
+
+        # TIER 2 Rule 12: Consistent response structure
+        return {"success": True}
+
+    except Exception as e:
+        # Generic error handler
+        # TIER 3 Rule 14: Norwegian error message
+        logger.error(f"Unexpected error marking video unavailable: {e}", exc_info=True)
         return JSONResponse(
             status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
         )
