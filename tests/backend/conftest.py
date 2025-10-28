@@ -9,6 +9,9 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
 import pytest
+from fastapi.testclient import TestClient
+
+from backend.main import app
 
 
 @pytest.fixture
@@ -24,7 +27,7 @@ def test_db():
             cursor = test_db.execute("SELECT * FROM videos")
             assert cursor.fetchall() == []
     """
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
 
     # Load and execute schema
@@ -35,6 +38,37 @@ def test_db():
     yield conn
 
     conn.close()
+
+
+@pytest.fixture
+def test_client(test_db, monkeypatch):
+    """
+    Create FastAPI TestClient with test database monkey-patched.
+
+    The test database connection is monkey-patched into the queries module,
+    so all API calls and database queries use the in-memory test database.
+
+    Usage:
+        def test_api_endpoint(test_client):
+            response = test_client.post("/api/videos/watch", json={...})
+            assert response.status_code == 200
+    """
+    # Monkey-patch the get_connection context manager to return test_db
+    from backend.db import queries
+    from contextlib import contextmanager
+
+    @contextmanager
+    def mock_get_connection():
+        """Return the test database connection."""
+        yield test_db
+
+    # Replace get_connection in the queries module
+    monkeypatch.setattr(queries, "get_connection", mock_get_connection)
+
+    # Create test client
+    client = TestClient(app)
+
+    yield client
 
 
 def create_test_video(
