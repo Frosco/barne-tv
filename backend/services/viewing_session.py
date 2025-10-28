@@ -20,6 +20,7 @@ from backend.db.queries import (
     get_available_videos,
     get_watch_history_for_date,
     get_setting,
+    check_grace_consumed,
 )
 from backend.exceptions import NoVideosAvailableError
 
@@ -81,9 +82,13 @@ def get_daily_limit(conn=None) -> dict:
     elif minutes_remaining > 0:
         current_state = "winddown"
     else:
-        # Check if grace video has been consumed
-        # For now, if limit reached, offer grace (Story 2.2 will track grace consumption)
-        current_state = "grace"
+        # TIER 1 Rule: Check if grace video has been consumed
+        # If grace video already watched today, system is locked until midnight
+        grace_consumed = check_grace_consumed(today, conn=conn)
+        if grace_consumed:
+            current_state = "locked"
+        else:
+            current_state = "grace"
 
     # Calculate reset time (midnight UTC tonight/tomorrow)
     tomorrow = current_time.date() + timedelta(days=1)
