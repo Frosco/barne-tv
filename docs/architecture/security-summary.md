@@ -11,7 +11,7 @@
 - ✅ Server hardening (UFW firewall, fail2ban, security updates)
 - ✅ Application user isolation (non-root, restricted permissions)
 - ✅ Secure environment variable handling
-- ✅ SEO/crawler prevention (robots.txt, noindex headers)
+- ✅ SEO/crawler prevention (robots.txt, noindex/nofollow/noarchive headers)
 - ✅ Comprehensive security testing (TIER 1: 100% coverage)
 
 **Pragmatic simplifications (justified for single-family deployment):**

@@ -569,7 +569,7 @@ location /robots.txt {
 <!DOCTYPE html>
 <html lang="no">
 <head>
-    <meta name="robots" content="noindex, nofollow">
+    <meta name="robots" content="noindex, nofollow, noarchive">
     <meta name="googlebot" content="noindex, nofollow">
     <!-- rest of head -->
 </head>
