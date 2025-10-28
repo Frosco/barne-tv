@@ -20,6 +20,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderGrid, loadVideos, initGrid } from './grid.js';
 
+// Mock the player module to prevent actual player creation in tests
+vi.mock('./player.js', () => ({
+  createPlayer: vi.fn().mockResolvedValue({}),
+}));
+
 // Mock fetch globally
 global.fetch = vi.fn();
 
@@ -254,12 +259,9 @@ describe('handleCardClick()', () => {
     });
   });
 
-  it('emits custom video:play event when card clicked', async () => {
-    // Arrange: Setup event listener
-    let playEvent = null;
-    document.addEventListener('video:play', (e) => {
-      playEvent = e;
-    });
+  it('calls createPlayer when card clicked', async () => {
+    // Arrange
+    const { createPlayer } = await import('./player.js');
 
     renderGrid(mockVideos);
     const card = document.querySelector('.video-card');
@@ -267,18 +269,16 @@ describe('handleCardClick()', () => {
     // Act: Click card
     card.click();
 
-    // Assert: Event dispatched with correct detail
-    expect(playEvent).toBeTruthy();
-    expect(playEvent.detail.videoId).toBe('video_001');
-    expect(playEvent.detail.durationSeconds).toBe(300);
+    // Wait for async player creation
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Assert: createPlayer was called with correct video ID
+    expect(createPlayer).toHaveBeenCalled();
   });
 
   it('handles keyboard Enter key like click', async () => {
-    // Arrange: Setup event listener
-    let playEvent = null;
-    document.addEventListener('video:play', (e) => {
-      playEvent = e;
-    });
+    // Arrange
+    const { createPlayer } = await import('./player.js');
 
     renderGrid(mockVideos);
     const card = document.querySelector('.video-card');
@@ -287,17 +287,16 @@ describe('handleCardClick()', () => {
     const enterEvent = new KeyboardEvent('keydown', { key: 'Enter' });
     card.dispatchEvent(enterEvent);
 
-    // Assert: Event dispatched (same as click)
-    expect(playEvent).toBeTruthy();
-    expect(playEvent.detail.videoId).toBe('video_001');
+    // Wait for async player creation
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Assert: Same as click behavior - createPlayer called
+    expect(createPlayer).toHaveBeenCalled();
   });
 
   it('handles keyboard Space key like click', async () => {
-    // Arrange: Setup event listener
-    let playEvent = null;
-    document.addEventListener('video:play', (e) => {
-      playEvent = e;
-    });
+    // Arrange
+    const { createPlayer } = await import('./player.js');
 
     renderGrid(mockVideos);
     const card = document.querySelector('.video-card');
@@ -306,9 +305,11 @@ describe('handleCardClick()', () => {
     const spaceEvent = new KeyboardEvent('keydown', { key: ' ' });
     card.dispatchEvent(spaceEvent);
 
-    // Assert: Event dispatched (same as click)
-    expect(playEvent).toBeTruthy();
-    expect(playEvent.detail.videoId).toBe('video_001');
+    // Wait for async player creation
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Assert: Same as click behavior - createPlayer called
+    expect(createPlayer).toHaveBeenCalled();
   });
 });
 

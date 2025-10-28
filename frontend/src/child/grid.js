@@ -12,6 +12,8 @@
  * TIER 3 Rule 14: Norwegian user messages
  */
 
+import { createPlayer } from './player.js';
+
 // Module state
 let currentVideos = [];
 let dailyLimit = null;
@@ -35,6 +37,31 @@ export function initGrid() {
       loadVideos();
     });
   }
+
+  // Listen for player return event (Story 2.2)
+  document.addEventListener('player:returnToGrid', handlePlayerReturn);
+}
+
+/**
+ * Handle return from player to grid.
+ * Fetches new videos and shows grid.
+ */
+async function handlePlayerReturn(event) {
+  const { fetchNew } = event.detail;
+
+  if (fetchNew) {
+    // Fetch new random videos
+    await loadVideos();
+  }
+
+  // Show grid
+  const gridContainer = document.querySelector('[data-video-grid]');
+  if (gridContainer) {
+    gridContainer.style.display = '';
+  }
+
+  // Re-enable cards
+  enableCards();
 }
 
 /**
@@ -191,41 +218,55 @@ function attachCardListeners() {
 }
 
 /**
- * Handle video card click/activation.
+ * Handle video card click/activation (Story 2.2).
  *
- * Disables all cards during loading to prevent double-clicks.
- * Emits custom event that player module will listen for (Story 2.2).
+ * Creates player, hides grid, and disables cards.
  *
  * @param {Event} event - Click or keyboard event
  */
-function handleCardClick(event) {
+async function handleCardClick(event) {
   if (isLoading) return;
 
   const card = event.currentTarget;
   const videoId = card.dataset.videoId;
-  const durationSeconds = card.dataset.durationSeconds;
 
   console.log(`Video card clicked: ${videoId}`);
 
-  // Disable all cards during loading
-  disableCards();
+  try {
+    // Disable all cards during loading
+    disableCards();
 
-  // Emit custom event for player module (Story 2.2)
-  const playEvent = new CustomEvent('video:play', {
-    detail: {
-      videoId,
-      durationSeconds: parseInt(durationSeconds, 10),
-    },
-  });
-  document.dispatchEvent(playEvent);
+    // Get or create player container
+    let playerContainer = document.querySelector('[data-player-root]');
+    if (!playerContainer) {
+      playerContainer = document.createElement('div');
+      playerContainer.className = 'player-container';
+      playerContainer.setAttribute('data-player-root', '');
+      document.body.appendChild(playerContainer);
+    }
 
-  // For now, just log (Story 2.2 will implement player)
-  console.log('Play event dispatched:', playEvent.detail);
+    // Hide grid
+    const gridContainer = document.querySelector('[data-video-grid]');
+    if (gridContainer) {
+      gridContainer.style.display = 'none';
+    }
 
-  // Re-enable cards after a short delay (Story 2.2 will handle this properly)
-  setTimeout(() => {
+    // Show player container and enable pointer events
+    playerContainer.style.display = 'block';
+    playerContainer.style.pointerEvents = 'auto';
+
+    // Create player (Story 2.2)
+    await createPlayer(videoId, playerContainer);
+  } catch (error) {
+    console.error('Error creating player:', error);
+    // Re-enable cards and show grid on error
     enableCards();
-  }, 500);
+    const gridContainer = document.querySelector('[data-video-grid]');
+    if (gridContainer) {
+      gridContainer.style.display = '';
+    }
+    showError('Kunne ikke starte video. Prøv igjen.');
+  }
 }
 
 /**
