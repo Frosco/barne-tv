@@ -542,6 +542,46 @@ def get_watch_history_for_date(date: str, conn=None) -> list[dict]:
     return history
 
 
+def check_grace_consumed(date: str, conn=None) -> bool:
+    """
+    Check if a grace video has been consumed for a specific date.
+
+    TIER 1 Rules Applied:
+    - Rule 2: Grace videos marked with grace_play=1
+    - Rule 6: Use SQL placeholders
+
+    TIER 2 Rule 7: Always use context manager.
+
+    Args:
+        date: Date string in YYYY-MM-DD format (UTC)
+        conn: Optional database connection (for testing). If None, creates new connection.
+
+    Returns:
+        True if a grace video (grace_play=1) exists for the date, False otherwise
+
+    Example:
+        # Check if grace consumed today
+        today = datetime.now(timezone.utc).date().isoformat()
+        is_locked = check_grace_consumed(today)
+    """
+    query = """
+        SELECT COUNT(*) as count
+        FROM watch_history
+        WHERE DATE(watched_at) = ?
+        AND grace_play = 1
+    """
+
+    if conn:
+        # For testing: use provided connection
+        result = conn.execute(query, (date,)).fetchone()
+    else:
+        # TIER 2 Rule 7: Always use context manager for production
+        with get_connection() as conn:
+            result = conn.execute(query, (date,)).fetchone()
+
+    return result["count"] > 0
+
+
 # =============================================================================
 # SETTINGS MANAGEMENT (Story 1.4)
 # =============================================================================
@@ -623,3 +663,125 @@ def set_setting(key: str, value: str) -> None:
                VALUES (?, ?, ?)""",
             (key, value, updated_at),
         )
+
+
+# =============================================================================
+# WATCH HISTORY TRACKING (Story 2.2)
+# =============================================================================
+
+
+def insert_watch_history(
+    video_id: str,
+    completed: bool,
+    duration_watched_seconds: int,
+    manual_play: bool = False,
+    grace_play: bool = False,
+) -> dict:
+    """
+    Insert watch history record for video playback tracking.
+
+    TIER 1 Rules Applied:
+    - Rule 2: manual_play and grace_play default to False for normal child playback
+    - Rule 3: Always use UTC for timestamps (datetime.now(timezone.utc))
+    - Rule 6: Always use SQL placeholders (never string formatting)
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        video_id: YouTube video ID (11 characters)
+        completed: True if video played to end, False if interrupted
+        duration_watched_seconds: Actual watch time in seconds
+        manual_play: True if parent "Play Again", False if child selection (default False)
+        grace_play: True if grace video, False if normal (default False)
+
+    Returns:
+        Dict of inserted watch_history row
+
+    Example:
+        # Normal child playback (counts toward limit)
+        history = insert_watch_history('dQw4w9WgXcQ', completed=True, duration_watched_seconds=212)
+
+        # Partial watch (back button pressed after 45 seconds)
+        history = insert_watch_history('abc123def45', completed=False, duration_watched_seconds=45)
+
+        # Parent "Play Again" (doesn't count toward limit)
+        history = insert_watch_history('xyz789abc12', completed=True, duration_watched_seconds=180, manual_play=True)
+    """
+    # TIER 1 Rule 3: Always use UTC for timestamps
+    watched_at = datetime.now(timezone.utc).isoformat()
+
+    # Denormalize video title and channel name from videos table
+    # Get first matching video (any duplicate instance is fine)
+    with get_connection() as conn:
+        video = conn.execute(
+            "SELECT title, youtube_channel_name FROM videos WHERE video_id = ? LIMIT 1",
+            (video_id,),
+        ).fetchone()
+
+        if not video:
+            # If video not in database, use placeholder values
+            video_title = "Unknown Video"
+            channel_name = "Unknown Channel"
+        else:
+            video_title = video["title"]
+            channel_name = video["youtube_channel_name"]
+
+        # TIER 1 Rule 6: Always use SQL placeholders
+        # TIER 1 Rule 2: manual_play and grace_play default to False
+        cursor = conn.execute(
+            """INSERT INTO watch_history
+               (video_id, video_title, channel_name, watched_at, completed,
+                manual_play, grace_play, duration_watched_seconds)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                video_id,
+                video_title,
+                channel_name,
+                watched_at,
+                int(completed),
+                int(manual_play),
+                int(grace_play),
+                duration_watched_seconds,
+            ),
+        )
+
+        # Fetch and return the inserted row
+        history_id = cursor.lastrowid
+        result = conn.execute("SELECT * FROM watch_history WHERE id = ?", (history_id,)).fetchone()
+
+        return dict(result)
+
+
+def update_video_availability(video_id: str, is_available: bool = False) -> int:
+    """
+    Mark video as unavailable (or available) globally across ALL duplicate instances.
+
+    TIER 1 Rules Applied:
+    - Rule 1: When video becomes unavailable, marks ALL duplicate instances globally
+    - Rule 6: Always use SQL placeholders (never string formatting)
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        video_id: YouTube video ID (11 characters)
+        is_available: False to mark unavailable (default), True to mark available
+
+    Returns:
+        Number of video rows updated (could be multiple duplicates)
+
+    Example:
+        # Mark video unavailable after YouTube error 100/150
+        count = update_video_availability('dQw4w9WgXcQ', is_available=False)
+        print(f"Marked {count} duplicate instances as unavailable")
+
+        # Restore video availability (rare)
+        count = update_video_availability('abc123def45', is_available=True)
+    """
+    # TIER 1 Rule 6: Always use SQL placeholders
+    # TIER 1 Rule 1: Update ALL duplicate instances globally
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "UPDATE videos SET is_available = ? WHERE video_id = ?",
+            (int(is_available), video_id),
+        )
+        return cursor.rowcount
