@@ -15,8 +15,13 @@ from backend.auth import create_session, hash_password, verify_password, session
 
 @pytest.fixture
 def client():
-    """Create FastAPI test client."""
-    return TestClient(app)
+    """
+    Create FastAPI test client with valid Host header.
+
+    Story 2.3: TestClient needs base_url set to include a host from ALLOWED_HOSTS,
+    otherwise TrustedHostMiddleware will reject requests with 400 error.
+    """
+    return TestClient(app, base_url="http://localhost")
 
 
 # =============================================================================
@@ -311,7 +316,8 @@ def test_multiple_failed_login_attempts_allowed():
     from fastapi.testclient import TestClient
     from backend.db.queries import set_setting
 
-    client = TestClient(app)
+    # Story 2.3: TestClient needs base_url for TrustedHostMiddleware
+    client = TestClient(app, base_url="http://localhost")
 
     password = "test_password"
     hashed = hash_password(password)
