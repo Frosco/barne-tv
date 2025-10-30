@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Historikk - Safe YouTube Viewer{% endblock %}
+
+{% block content %}
+<div class="history-container">
+  <header class="history-header">
+    <h1 class="history-title">Historikk</h1>
+    <a href="/admin/dashboard" class="btn btn-secondary">Tilbake til dashboard</a>
+  </header>
+
+  <!-- Filter form -->
+  <form id="filter-form" class="filter-form">
+    <div class="filter-row">
+      <div class="form-group">
+        <label for="date-from" class="form-label">Fra dato</label>
+        <input type="date" id="date-from" name="dateFrom" class="form-input" />
+      </div>
+
+      <div class="form-group">
+        <label for="date-to" class="form-label">Til dato</label>
+        <input type="date" id="date-to" name="dateTo" class="form-input" />
+      </div>
+
+      <div class="form-group">
+        <label for="channel-filter" class="form-label">Kanal</label>
+        <select id="channel-filter" name="channel" class="form-input">
+          <option value="">Alle kanaler</option>
+          <!-- Populated dynamically by JavaScript -->
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="search-input" class="form-label">Søk</label>
+        <input
+          type="text"
+          id="search-input"
+          name="search"
+          class="form-input"
+          placeholder="Søk etter tittel..."
+        />
+      </div>
+    </div>
+
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-primary">Filtrer</button>
+      <button type="button" id="reset-filters" class="btn btn-secondary">Nullstill</button>
+    </div>
+  </form>
+
+  <!-- History table -->
+  <div id="history-content" class="history-content">
+    <!-- Populated by JavaScript -->
+    <div class="loading-spinner" data-loading>
+      Laster historikk...
+    </div>
+  </div>
+
+  <!-- Pagination controls -->
+  <div id="pagination" class="pagination" style="display: none;">
+    <button id="prev-page" class="btn btn-secondary" disabled>Forrige</button>
+    <span id="page-info" class="page-info">Side 1 av 1</span>
+    <button id="next-page" class="btn btn-secondary" disabled>Neste</button>
+  </div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="empty-state" style="display: none;">
+    <p>Ingen videoer i historikken ennå</p>
+  </div>
+</div>
+
+<!-- Modal for video replay -->
+<div id="replay-modal" class="modal" style="display: none;">
+  <div class="modal-overlay" data-modal-close></div>
+  <div class="modal-content">
+    <button class="modal-close" data-modal-close>&times;</button>
+    <div id="replay-player" class="replay-player">
+      <!-- YouTube IFrame injected here -->
+    </div>
+  </div>
+</div>
+
+<style>
+  /* History page styles using design system */
+  .history-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-lg, 32px);
+  }
+
+  .history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-lg, 32px);
+  }
+
+  .history-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--color-text, #2D3436);
+    margin: 0;
+  }
+
+  /* Filter form styles */
+  .filter-form {
+    background: white;
+    border-radius: 8px;
+    padding: var(--space-md, 24px);
+    margin-bottom: var(--space-lg, 32px);
+    box-shadow: var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.1));
+  }
+
+  .filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-md, 16px);
+    margin-bottom: var(--space-md, 16px);
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text, #2D3436);
+  }
+
+  .form-input {
+    padding: 10px;
+    border: 2px solid var(--color-border, #dfe6e9);
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #FFDB4D);
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: var(--space-sm, 12px);
+  }
+
+  /* History table styles */
+  .history-content {
+    background: white;
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.1));
+    overflow-x: auto;
+  }
+
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .history-table th,
+  .history-table td {
+    padding: var(--space-md, 16px);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border, #dfe6e9);
+  }
+
+  .history-table th {
+    background: var(--color-background, #f5f5f5);
+    font-weight: 600;
+    color: var(--color-text, #2D3436);
+  }
+
+  .history-table tbody tr:hover {
+    background: var(--color-background, #f5f5f5);
+  }
+
+  .history-thumbnail {
+    width: 120px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+
+  .history-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--color-info-bg, #e3f2fd);
+    color: var(--color-info, #1976d2);
+  }
+
+  /* Button styles */
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .btn-primary {
+    background: var(--color-primary, #FFDB4D);
+    color: var(--color-text, #2D3436);
+  }
+
+  .btn-primary:hover {
+    background: var(--color-primary-hover, #FFD11A);
+  }
+
+  .btn-secondary {
+    background: var(--color-secondary, #74b9ff);
+    color: white;
+  }
+
+  .btn-secondary:hover {
+    background: var(--color-secondary-hover, #0984e3);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  /* Pagination styles */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-md, 16px);
+    margin-top: var(--space-lg, 32px);
+  }
+
+  .page-info {
+    font-size: 14px;
+    color: var(--color-text-secondary, #636e72);
+  }
+
+  /* Modal styles */
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+  }
+
+  .modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 8px;
+    padding: var(--space-md, 24px);
+    max-width: 90vw;
+    max-height: 90vh;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 32px;
+    cursor: pointer;
+    color: var(--color-text-secondary, #636e72);
+  }
+
+  .replay-player {
+    width: 800px;
+    max-width: 90vw;
+    aspect-ratio: 16/9;
+  }
+
+  .replay-player iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: var(--space-xl, 64px);
+    color: var(--color-text-secondary, #636e72);
+  }
+
+  /* Loading spinner */
+  .loading-spinner {
+    text-align: center;
+    padding: var(--space-xl, 64px);
+    color: var(--color-text-secondary, #636e72);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .history-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-md, 16px);
+    }
+
+    .filter-row {
+      grid-template-columns: 1fr;
+    }
+
+    .history-table {
+      font-size: 12px;
+    }
+
+    .history-thumbnail {
+      width: 80px;
+      height: 60px;
+    }
+
+    .modal-content {
+      width: 95vw;
+      max-height: 95vh;
+      padding: var(--space-sm, 12px);
+    }
+
+    .replay-player {
+      width: 100%;
+    }
+  }
+</style>
+
+<script type="module">
+  import { initHistory } from '/src/admin/history.js';
+  initHistory();
+</script>
+{% endblock %}
