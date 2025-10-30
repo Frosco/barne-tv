@@ -55,6 +55,7 @@ def test_client(test_db, monkeypatch):
     """
     # Monkey-patch the get_connection context manager to return test_db
     from backend.db import queries
+    from backend import routes
     from contextlib import contextmanager
 
     @contextmanager
@@ -62,11 +63,13 @@ def test_client(test_db, monkeypatch):
         """Return the test database connection."""
         yield test_db
 
-    # Replace get_connection in the queries module
+    # Replace get_connection in both queries module and routes module
+    # (routes.py imports get_connection directly, so we need to patch it there too)
     monkeypatch.setattr(queries, "get_connection", mock_get_connection)
+    monkeypatch.setattr(routes, "get_connection", mock_get_connection)
 
-    # Create test client
-    client = TestClient(app)
+    # Create test client with base_url to satisfy TrustedHostMiddleware (Story 2.3)
+    client = TestClient(app, base_url="http://localhost")
 
     yield client
 

@@ -16,8 +16,35 @@ DATABASE_PATH = os.getenv("DATABASE_PATH", "/opt/youtube-viewer/data/app.db")
 # YouTube API Configuration
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 
+
 # Server Configuration
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+def parse_allowed_hosts(env_value: str | None, default: str = "localhost,127.0.0.1") -> list[str]:
+    """
+    Parse ALLOWED_HOSTS from comma-separated string.
+
+    Handles whitespace around commas, empty strings, and trailing commas.
+
+    Args:
+        env_value: Comma-separated host list or None
+        default: Default value if env_value is None or empty
+
+    Returns:
+        List of cleaned hostnames
+
+    Raises:
+        ValueError: If resulting list is empty after parsing
+    """
+    value = env_value if env_value else default
+    # Strip whitespace from each host and filter out empty strings
+    hosts = [h.strip() for h in value.split(",") if h.strip()]
+
+    if not hosts:
+        raise ValueError("ALLOWED_HOSTS cannot be empty")
+
+    return hosts
+
+
+ALLOWED_HOSTS = parse_allowed_hosts(os.getenv("ALLOWED_HOSTS"))
 
 # Environment
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")

@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Safe YouTube Viewer for Kids - Trygt videovisning for barn">
 
+  {# Security meta tags - prevent search engine indexing (Story 2.3) #}
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="googlebot" content="noindex, nofollow">
+
   {# Title block - child templates can override #}
   <title>{% block title %}Safe YouTube Viewer{% endblock %}</title>
 

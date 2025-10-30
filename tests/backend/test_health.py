@@ -11,7 +11,8 @@ from backend.main import app
 def test_health_endpoint_returns_ok():
     """Test that health endpoint returns success response."""
     # Arrange
-    client = TestClient(app)
+    # Story 2.3: TestClient needs base_url for TrustedHostMiddleware
+    client = TestClient(app, base_url="http://localhost")
 
     # Act
     response = client.get("/health")
@@ -24,7 +25,8 @@ def test_health_endpoint_returns_ok():
 def test_health_endpoint_returns_json():
     """Test that health endpoint returns JSON content type."""
     # Arrange
-    client = TestClient(app)
+    # Story 2.3: TestClient needs base_url for TrustedHostMiddleware
+    client = TestClient(app, base_url="http://localhost")
 
     # Act
     response = client.get("/health")

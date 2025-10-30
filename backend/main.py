@@ -8,13 +8,14 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi.errors import RateLimitExceeded
 
-from backend.config import DEBUG, validate_config
+from backend.config import DEBUG, ALLOWED_HOSTS, validate_config
 from backend.middleware import get_limiter, custom_rate_limit_handler
 from backend.routes import router
 
@@ -88,6 +89,50 @@ templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 # Make templates object available to routes
 app.state.templates = templates
+
+
+# =============================================================================
+# SECURITY MIDDLEWARE (Story 2.3)
+# =============================================================================
+
+# Trusted host protection - validates Host header against ALLOWED_HOSTS
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=ALLOWED_HOSTS,
+)
+
+
+# Custom security headers middleware (defense-in-depth)
+# Primary headers set by Nginx, this provides protection if Nginx bypassed
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """
+    Add security headers to all responses.
+
+    Story 2.3: Defense-in-depth security headers.
+    Primary headers are set by Nginx in production, but FastAPI middleware
+    provides backup protection if Nginx is bypassed or misconfigured.
+
+    Headers added:
+    - X-Robots-Tag: Prevents search engine indexing (AC 3)
+    - X-Content-Type-Options: Prevents MIME sniffing (AC 12)
+    - X-Frame-Options: Prevents clickjacking (AC 11)
+    - X-XSS-Protection: Legacy browser XSS protection (AC 13)
+
+    Note: While this middleware is async (FastAPI requirement), it only adds
+    headers and does not perform async operations.
+    """
+    response = await call_next(request)
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
+
+
+# =============================================================================
+# CORS MIDDLEWARE (Development only)
+# =============================================================================
 
 # Configure CORS for local development
 if DEBUG:
