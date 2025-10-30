@@ -217,7 +217,7 @@ def admin_logout(request: Request, response: Response):
 
 @router.get("/admin/channels", response_class=HTMLResponse)
 @limiter.limit("100/minute")
-def admin_channels_page(request: Request):
+def admin_channels_page(request: Request, response: Response):
     """
     Serve admin channel management page.
 
@@ -243,7 +243,7 @@ def admin_channels_page(request: Request):
 
 @router.post("/admin/sources")
 @limiter.limit("100/minute")
-def add_source(request: Request, source_data: AddSourceRequest):
+def add_source(request: Request, response: Response, source_data: AddSourceRequest):
     """
     Add new YouTube channel or playlist as content source.
 
@@ -434,7 +434,7 @@ def list_sources(request: Request, response: Response):
 
 @router.delete("/admin/sources/{source_id}")
 @limiter.limit("100/minute")
-def remove_source(request: Request, source_id: int):
+def remove_source(request: Request, response: Response, source_id: int):
     """
     Remove content source and all its videos.
 
@@ -500,7 +500,7 @@ def remove_source(request: Request, source_id: int):
 
 @router.post("/admin/sources/{source_id}/refresh")
 @limiter.limit("100/minute")
-def refresh_source(request: Request, source_id: int):
+def refresh_source(request: Request, response: Response, source_id: int):
     """
     Refresh content source by fetching new videos.
 
@@ -610,7 +610,7 @@ def refresh_source(request: Request, source_id: int):
 
 @router.get("/child/grid", response_class=HTMLResponse)
 @limiter.limit("100/minute")
-def child_grid_page(request: Request):
+def child_grid_page(request: Request, response: Response):
     """
     Serve child video grid page.
 
@@ -726,7 +726,7 @@ def get_videos(request: Request, response: Response, count: int = 9):
 
 @router.post("/api/videos/watch")
 @limiter.limit("100/minute")
-def log_video_watch(request: Request, data: WatchVideoRequest):
+def log_video_watch(request: Request, response: Response, data: WatchVideoRequest):
     """
     Log that a video was watched (completed or partial).
 
@@ -819,7 +819,7 @@ def log_video_watch(request: Request, data: WatchVideoRequest):
 
 @router.post("/api/videos/unavailable")
 @limiter.limit("100/minute")
-def mark_video_unavailable(request: Request, data: VideoUnavailableRequest):
+def mark_video_unavailable(request: Request, response: Response, data: VideoUnavailableRequest):
     """
     Mark video as unavailable globally (all duplicate instances).
 
@@ -890,6 +890,7 @@ def mark_video_unavailable(request: Request, data: VideoUnavailableRequest):
 @limiter.limit("100/minute")
 def get_admin_history(
     request: Request,
+    response: Response,
     limit: int = 50,
     offset: int = 0,
     date_from: str | None = None,
@@ -1023,7 +1024,7 @@ def get_admin_history(
 
 @router.post("/admin/history/replay")
 @limiter.limit("100/minute")
-def replay_video(request: Request, data: ReplayVideoRequest):
+def replay_video(request: Request, response: Response, data: ReplayVideoRequest):
     """
     Prepare video for manual replay by admin.
 
@@ -1081,7 +1082,7 @@ def replay_video(request: Request, data: ReplayVideoRequest):
 
 @router.get("/admin/history", response_class=HTMLResponse)
 @limiter.limit("100/minute")
-def admin_history_page(request: Request):
+def admin_history_page(request: Request, response: Response):
     """
     Serve admin history page.
 
