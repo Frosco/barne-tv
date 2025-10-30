@@ -21,6 +21,7 @@ from backend.auth import (
     verify_password,
 )
 from backend.db.queries import (
+    get_connection,
     get_setting,
     insert_watch_history,
     update_video_availability,
@@ -51,15 +52,22 @@ class AddSourceRequest(BaseModel):
 
 
 class WatchVideoRequest(BaseModel):
-    """Request model for logging video watch (Story 2.2)."""
+    """Request model for logging video watch (Story 2.2, extended in Story 3.1)."""
 
     videoId: str
     completed: bool
     durationWatchedSeconds: int
+    manualPlay: bool = False  # Story 3.1: defaults to False for normal child playback
 
 
 class VideoUnavailableRequest(BaseModel):
     """Request model for marking video unavailable (Story 2.2)."""
+
+    videoId: str
+
+
+class ReplayVideoRequest(BaseModel):
+    """Request model for manual video replay (Story 3.1)."""
 
     videoId: str
 
@@ -725,8 +733,11 @@ def log_video_watch(request: Request, data: WatchVideoRequest):
     Called when video ends naturally or when Back button pressed.
     NOT called when ESC key pressed (cancelled playback).
 
+    **Story 3.1 Addition:** Now accepts optional manualPlay parameter.
+    When manualPlay=True, video does NOT count toward daily limit.
+
     TIER 1 Rules Applied:
-    - Rule 2: manual_play and grace_play default to false (normal child playback counts toward limit)
+    - Rule 2: manual_play and grace_play flags control limit counting
     - Rule 3: UTC timestamp recorded server-side (insert_watch_history uses datetime.now(timezone.utc))
     - Rule 5: Validate all inputs (videoId format, durationWatchedSeconds range)
     - Rule 6: SQL placeholders used in database layer
@@ -739,7 +750,7 @@ def log_video_watch(request: Request, data: WatchVideoRequest):
 
     Args:
         request: FastAPI Request object (for rate limiting)
-        data: WatchVideoRequest with videoId, completed, durationWatchedSeconds
+        data: WatchVideoRequest with videoId, completed, durationWatchedSeconds, manualPlay (optional)
 
     Returns:
         Success (200): {
@@ -781,14 +792,14 @@ def log_video_watch(request: Request, data: WatchVideoRequest):
 
     try:
         # Insert watch history record
-        # TIER 1 Rule 2: manual_play=False, grace_play=False for normal child playback
+        # TIER 1 Rule 2: manual_play flag controls limit counting (Story 3.1)
         # TIER 1 Rule 3: UTC timestamp recorded server-side
         insert_watch_history(
             video_id=data.videoId,
             completed=data.completed,
             duration_watched_seconds=data.durationWatchedSeconds,
-            manual_play=False,
-            grace_play=False,
+            manual_play=data.manualPlay,  # Story 3.1: Pass from request (default False)
+            grace_play=False,  # Still hardcoded - grace logic is separate
         )
 
         # Get updated daily limit state
@@ -868,3 +879,229 @@ def mark_video_unavailable(request: Request, data: VideoUnavailableRequest):
         return JSONResponse(
             status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
         )
+
+
+# =============================================================================
+# ADMIN HISTORY ROUTES (Story 3.1)
+# =============================================================================
+
+
+@router.get("/admin/api/history")
+@limiter.limit("100/minute")
+def get_admin_history(
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    channel: str | None = None,
+    search: str | None = None,
+):
+    """
+    Get paginated watch history with optional filters.
+
+    TIER 1 Rules Applied:
+    - Rule 3: UTC timestamps stored, returned as ISO 8601
+    - Rule 6: SQL placeholders for all filter parameters
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    Args:
+        request: FastAPI Request object for authentication
+        limit: Number of entries per page (default 50)
+        offset: Offset for pagination (default 0)
+        date_from: Start date filter YYYY-MM-DD (optional)
+        date_to: End date filter YYYY-MM-DD (optional)
+        channel: Channel name filter (optional)
+        search: Title search term (optional)
+
+    Returns:
+        {
+            "history": [
+                {
+                    "id": 1,
+                    "videoId": "dQw4w9WgXcQ",
+                    "videoTitle": "Excavator Song",
+                    "channelName": "Blippi",
+                    "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg",
+                    "watchedAt": "2025-10-29T14:30:00Z",
+                    "completed": true,
+                    "manualPlay": false,
+                    "gracePlay": false,
+                    "durationWatchedSeconds": 245
+                }
+            ],
+            "total": 150
+        }
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Build WHERE clause with filters (TIER 1 Rule 6: Use SQL placeholders)
+        where_conditions = ["1=1"]
+        params = []
+
+        # Date range filter
+        if date_from:
+            where_conditions.append("DATE(h.watched_at) >= ?")
+            params.append(date_from)
+
+        if date_to:
+            where_conditions.append("DATE(h.watched_at) <= ?")
+            params.append(date_to)
+
+        # Channel filter
+        if channel:
+            where_conditions.append("h.channel_name = ?")
+            params.append(channel)
+
+        # Search filter (case-insensitive)
+        if search:
+            where_conditions.append("h.video_title LIKE ? COLLATE NOCASE")
+            params.append(f"%{search}%")
+
+        where_clause = " AND ".join(where_conditions)
+
+        # Build count query (for pagination total)
+        count_query = f"""
+            SELECT COUNT(*)
+            FROM watch_history h
+            WHERE {where_clause}
+        """
+
+        # Build main query
+        query = f"""
+            SELECT h.*,
+                   COALESCE(v.thumbnail_url,
+                            'https://i.ytimg.com/vi/' || h.video_id || '/default.jpg') as thumbnail_url
+            FROM watch_history h
+            LEFT JOIN videos v ON v.video_id = h.video_id
+            WHERE {where_clause}
+            ORDER BY h.watched_at DESC
+            LIMIT ? OFFSET ?
+        """
+
+        with get_connection() as conn:
+            # Get total count
+            total_result = conn.execute(count_query, tuple(params)).fetchone()
+            total = int(total_result[0]) if total_result else 0
+
+            # Get paginated results
+            params_with_pagination = params + [limit, offset]
+            results = conn.execute(query, tuple(params_with_pagination)).fetchall()
+
+            # Convert to response format (camelCase for frontend)
+            history = []
+            for row in results:
+                history.append(
+                    {
+                        "id": row["id"],
+                        "videoId": row["video_id"],
+                        "videoTitle": row["video_title"],
+                        "channelName": row["channel_name"],
+                        "thumbnailUrl": row["thumbnail_url"],
+                        "watchedAt": row["watched_at"],
+                        "completed": bool(row["completed"]),
+                        "manualPlay": bool(row["manual_play"]),
+                        "gracePlay": bool(row["grace_play"]),
+                        "durationWatchedSeconds": row["duration_watched_seconds"],
+                    }
+                )
+
+            # TIER 2 Rule 12: Consistent response structure
+            return {"history": history, "total": total}
+
+    except Exception as e:
+        logger.error(f"Error fetching admin history: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.post("/admin/history/replay")
+@limiter.limit("100/minute")
+def replay_video(request: Request, data: ReplayVideoRequest):
+    """
+    Prepare video for manual replay by admin.
+
+    Returns embed URL without logging to history yet.
+    History will be logged when video completes via modified /api/videos/watch endpoint.
+
+    TIER 1 Rules Applied:
+    - Rule 5: Validate videoId format (11 characters)
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error messages for users.
+
+    Args:
+        request: FastAPI Request object for authentication
+        data: ReplayVideoRequest with videoId field
+
+    Returns:
+        Success (200): {
+            "success": true,
+            "videoId": "dQw4w9WgXcQ",
+            "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&modestbranding=1"
+        }
+        Error (400): {"error": "Invalid parameter", "message": "Ugyldig video-ID"}
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    # TIER 1 Rule 5: Validate videoId format
+    video_id = data.videoId
+
+    if not video_id or len(video_id) != 11:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid parameter", "message": "Video-ID må være 11 tegn"},
+        )
+
+    # Validate character set (alphanumeric, dash, underscore)
+    if not all(c.isalnum() or c in "-_" for c in video_id):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid parameter", "message": "Ugyldig video-ID format"},
+        )
+
+    # Construct YouTube embed URL
+    embed_url = f"https://www.youtube.com/embed/{video_id}?autoplay=1&rel=0&modestbranding=1"
+
+    logger.info(f"Admin replay request for video {video_id}")
+
+    # TIER 2 Rule 12: Consistent response structure
+    return {"success": True, "videoId": video_id, "embedUrl": embed_url}
+
+
+@router.get("/admin/history", response_class=HTMLResponse)
+@limiter.limit("100/minute")
+def admin_history_page(request: Request):
+    """
+    Serve admin history page.
+
+    TIER 2 Rule 10: Require authentication via require_auth().
+
+    Args:
+        request: FastAPI Request object for accessing app state and authentication
+
+    Returns:
+        HTML response with history template
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "admin/history.html",
+        {
+            "request": request,
+            "interface": "admin",
+            "dev_mode": True,  # TODO: Use config.DEBUG in production
+        },
+    )

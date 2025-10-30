@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS watch_history (
 CREATE INDEX idx_watch_history_date ON watch_history(DATE(watched_at));
 CREATE INDEX idx_watch_history_video ON watch_history(video_id);
 CREATE INDEX idx_watch_history_watched_at ON watch_history(watched_at);
+CREATE INDEX idx_watch_history_channel ON watch_history(channel_name);
 
 -- Composite index for daily limit calculation
 CREATE INDEX idx_watch_history_date_flags
