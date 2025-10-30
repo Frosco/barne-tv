@@ -491,6 +491,43 @@ button {
   color: var(--color-neutral-gray);
 }
 
+.form-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  margin-right: var(--space-sm);
+}
+
+.form-group-checkbox {
+  flex-direction: row;
+  align-items: center;
+}
+
+.form-group-checkbox .form-label {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.help-text {
+  font-size: var(--font-size-small-body);
+  color: var(--color-neutral-gray);
+  font-style: italic;
+}
+
+.error-text {
+  font-size: var(--font-size-small-body);
+  color: var(--color-error);
+  display: none;
+}
+
 /* Buttons */
 .btn {
   padding: 12px var(--space-lg);

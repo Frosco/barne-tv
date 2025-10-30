@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Innstillinger - Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+  <header class="admin-header">
+    <h1 class="admin-title">Innstillinger</h1>
+    <p class="admin-subtitle">Konfigurer daglige grenser og innstillinger</p>
+  </header>
+
+  <div class="actions-row">
+    <a href="/admin/dashboard" class="btn btn-secondary">Tilbake til dashboard</a>
+  </div>
+
+  <!-- Settings form -->
+  <section class="settings-section">
+    <form id="settings-form" class="settings-form">
+
+      <!-- Daily limit -->
+      <div class="form-group">
+        <label for="daily-limit" class="form-label">Daglig grense (minutter)</label>
+        <input
+          type="number"
+          id="daily-limit"
+          name="daily_limit_minutes"
+          class="form-input"
+          min="5"
+          max="180"
+          step="5"
+          required
+        />
+        <span class="help-text">Hvor mange minutter barnet kan se videoer per dag (5-180 minutter)</span>
+        <span class="error-text" id="daily-limit-error"></span>
+      </div>
+
+      <!-- Grid size -->
+      <div class="form-group">
+        <label for="grid-size" class="form-label">Antall videoer i rutenettet</label>
+        <input
+          type="number"
+          id="grid-size"
+          name="grid_size"
+          class="form-input"
+          min="4"
+          max="15"
+          required
+        />
+        <span class="help-text">Hvor mange videoer som vises av gangen (4-15 videoer)</span>
+        <span class="error-text" id="grid-size-error"></span>
+      </div>
+
+      <!-- Audio enabled -->
+      <div class="form-group form-group-checkbox">
+        <label for="audio-enabled" class="form-label">
+          <input
+            type="checkbox"
+            id="audio-enabled"
+            name="audio_enabled"
+            class="form-checkbox"
+          />
+          Lydvarsler aktivert
+        </label>
+        <span class="help-text">Spill av lydvarsler ved 10, 5, og 2 minutter igjen</span>
+      </div>
+
+      <!-- Form actions -->
+      <div class="form-actions">
+        <button type="submit" id="save-btn" class="btn btn-primary" disabled>
+          Lagre innstillinger
+        </button>
+        <button type="button" id="reset-btn" class="btn btn-secondary">
+          Tilbakestill til standardverdier
+        </button>
+      </div>
+
+      <!-- Message display -->
+      <div id="message-container" class="message-container" style="display: none;">
+        <span id="message-text"></span>
+      </div>
+    </form>
+  </section>
+</div>
+
+<script type="module">
+  {% if dev_mode %}
+  {# Development: Import from Vite dev server #}
+  import { initSettings } from 'http://localhost:5173/src/admin/settings.js';
+  {% else %}
+  {# Production: Import from built assets #}
+  import { initSettings } from '/static/assets/admin/settings.js';
+  {% endif %}
+  initSettings();
+</script>
+
+<style>
+.actions-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: var(--space-lg);
+}
+
+.settings-section {
+  background: white;
+  padding: var(--space-xl);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.settings-form {
+  max-width: 600px;
+}
+
+.settings-form.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+</style>
+{% endblock %}

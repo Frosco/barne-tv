@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+  <header class="admin-header">
+    <h1 class="admin-title">Admin Dashboard</h1>
+    <p class="admin-subtitle">Velkommen til administrasjonsportalen</p>
+  </header>
+
+  <section class="dashboard-section">
+    <h2 class="section-title">Administrasjon</h2>
+    <div class="dashboard-cards">
+      <a href="/admin/channels" class="dashboard-card">
+        <div class="card-icon">📺</div>
+        <h3 class="card-title">Kanaler</h3>
+        <p class="card-description">Administrer YouTube-kanaler og spillelister</p>
+      </a>
+
+      <a href="/admin/history" class="dashboard-card">
+        <div class="card-icon">📜</div>
+        <h3 class="card-title">Historikk</h3>
+        <p class="card-description">Se visningshistorikk og spill av videoer</p>
+      </a>
+
+      <a href="/admin/settings" class="dashboard-card">
+        <div class="card-icon">⚙️</div>
+        <h3 class="card-title">Innstillinger</h3>
+        <p class="card-description">Konfigurer daglige grenser og innstillinger</p>
+      </a>
+    </div>
+  </section>
+
+  <section class="dashboard-actions">
+    <a href="/" class="btn btn-secondary">Gå til barneskjermen</a>
+    <a href="/admin/logout" class="btn btn-danger">Logg ut</a>
+  </section>
+</div>
+
+<style>
+.dashboard-section {
+  background: white;
+  padding: var(--space-xl);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-xl);
+}
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.dashboard-card {
+  background: var(--color-light-gray);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.card-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-md);
+}
+
+.card-title {
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--color-charcoal-text);
+}
+
+.card-description {
+  font-size: var(--font-size-body);
+  color: var(--color-neutral-gray);
+}
+
+.dashboard-actions {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: center;
+}
+</style>
+{% endblock %}
