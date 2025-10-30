@@ -1,15 +1,21 @@
 """
-Unit tests for database query functions (Story 1.2 - Quota Tracking).
+Unit tests for database query functions.
+
+Covers:
+- Story 1.2: Quota Tracking (log_api_call, get_daily_quota_usage)
+- Story 3.2: Settings Management (get_setting, set_setting)
 
 TIER 1 Safety Tests: 100% coverage required for quota tracking functions.
 
-Test IDs from test design document:
+Test IDs from test design documents:
 - 1.2-UNIT-004 through 1.2-UNIT-011
+- T3.2-BE-016, T3.2-BE-017
 """
 
 import pytest
+import json
 from datetime import datetime, timezone, timedelta
-from backend.db.queries import log_api_call, get_daily_quota_usage
+from backend.db.queries import log_api_call, get_daily_quota_usage, get_setting, set_setting
 
 
 # =============================================================================
@@ -306,3 +312,272 @@ def test_get_daily_quota_usage_handles_multiple_calls_same_day(test_db, monkeypa
 
     # Assert
     assert usage == 204  # 100 + 1 + 1 + 1 + 100 + 1
+
+
+# =============================================================================
+# get_setting() Tests (Story 3.2)
+# =============================================================================
+
+
+def test_get_setting_returns_correct_value(test_db, monkeypatch):
+    """
+    Test that get_setting() returns correct value for existing key (T3.2-BE-016).
+
+    Tests:
+    - Returns JSON-encoded string value
+    - Handles different data types (int, bool, string)
+    - Uses SQL placeholders (TIER 1)
+    """
+
+    # Arrange
+    def mock_get_connection():
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _mock():
+            yield test_db
+
+        return _mock()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
+
+    # Insert test settings with unique keys
+    now = datetime.now(timezone.utc).isoformat()
+    test_db.execute(
+        "INSERT INTO settings (key, value, updated_at, created_at) VALUES (?, ?, ?, ?)",
+        ("test_int_setting", json.dumps(45), now, now),
+    )
+    test_db.execute(
+        "INSERT INTO settings (key, value, updated_at, created_at) VALUES (?, ?, ?, ?)",
+        ("test_grid_setting", json.dumps(12), now, now),
+    )
+    test_db.execute(
+        "INSERT INTO settings (key, value, updated_at, created_at) VALUES (?, ?, ?, ?)",
+        ("test_bool_setting", json.dumps(False), now, now),
+    )
+    test_db.commit()
+
+    # Act & Assert: Test integer setting
+    result_int = get_setting("test_int_setting", conn=test_db)
+    assert json.loads(result_int) == 45  # JSON-decoded value is int
+
+    # Act & Assert: Test another integer setting
+    result_grid = get_setting("test_grid_setting", conn=test_db)
+    assert json.loads(result_grid) == 12
+
+    # Act & Assert: Test boolean setting
+    result_bool = get_setting("test_bool_setting", conn=test_db)
+    assert json.loads(result_bool) is False
+
+
+def test_get_setting_raises_keyerror_for_nonexistent_key(test_db):
+    """
+    Test that get_setting() raises KeyError for non-existent key (T3.2-BE-016).
+
+    Tests edge case: Setting key doesn't exist in database.
+    """
+    # Act & Assert
+    with pytest.raises(KeyError) as exc_info:
+        get_setting("nonexistent_key", conn=test_db)
+
+    assert "nonexistent_key" in str(exc_info.value)
+
+
+@pytest.mark.tier1
+def test_get_setting_uses_sql_placeholders(test_db, monkeypatch):
+    """
+    Test that get_setting() uses SQL placeholders (T3.2-BE-016).
+
+    TIER 1 Rule 6: SQL injection prevention.
+    Tests that malicious key names don't execute as SQL.
+    """
+
+    # Arrange
+    def mock_get_connection():
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _mock():
+            yield test_db
+
+        return _mock()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
+
+    # Insert a normal setting
+    now = datetime.now(timezone.utc).isoformat()
+    test_db.execute(
+        "INSERT INTO settings (key, value, updated_at, created_at) VALUES (?, ?, ?, ?)",
+        ("test_setting", json.dumps("test_value"), now, now),
+    )
+    test_db.commit()
+
+    # Act: Try to use SQL injection in key name
+    malicious_key = "test_setting' OR '1'='1"
+
+    # Assert: Should raise KeyError (not find the malicious key)
+    with pytest.raises(KeyError):
+        get_setting(malicious_key, conn=test_db)
+
+    # Verify original setting still exists (table not corrupted)
+    result = get_setting("test_setting", conn=test_db)
+    assert json.loads(result) == "test_value"
+
+
+# =============================================================================
+# set_setting() Tests (Story 3.2)
+# =============================================================================
+
+
+def test_set_setting_inserts_new_key(test_db, monkeypatch):
+    """
+    Test that set_setting() inserts new key correctly (T3.2-BE-017).
+
+    Tests INSERT behavior of upsert operation.
+    """
+
+    # Arrange
+    def mock_get_connection():
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _mock():
+            yield test_db
+
+        return _mock()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
+
+    # Act: Insert new setting
+    set_setting("new_setting_key", json.dumps(100))
+
+    # Assert: Setting exists in database
+    result = test_db.execute(
+        "SELECT key, value FROM settings WHERE key = ?", ("new_setting_key",)
+    ).fetchone()
+
+    assert result is not None
+    assert result["key"] == "new_setting_key"
+    assert json.loads(result["value"]) == 100
+
+
+def test_set_setting_updates_existing_key(test_db, monkeypatch):
+    """
+    Test that set_setting() updates existing key correctly (T3.2-BE-017).
+
+    Tests UPDATE behavior of upsert operation.
+    Tests that no duplicate rows are created.
+    """
+
+    # Arrange
+    def mock_get_connection():
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _mock():
+            yield test_db
+
+        return _mock()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
+
+    # Insert initial value with unique key
+    now = datetime.now(timezone.utc).isoformat()
+    test_db.execute(
+        "INSERT INTO settings (key, value, updated_at, created_at) VALUES (?, ?, ?, ?)",
+        ("test_update_key", json.dumps(30), now, now),
+    )
+    test_db.commit()
+
+    # Act: Update existing setting
+    set_setting("test_update_key", json.dumps(90))
+
+    # Assert: Value updated
+    result = test_db.execute(
+        "SELECT value FROM settings WHERE key = ?", ("test_update_key",)
+    ).fetchone()
+    assert json.loads(result["value"]) == 90
+
+    # Assert: No duplicate rows created
+    count = test_db.execute(
+        "SELECT COUNT(*) FROM settings WHERE key = ?", ("test_update_key",)
+    ).fetchone()[0]
+    assert count == 1, "set_setting created duplicate row instead of updating"
+
+
+@pytest.mark.tier1
+def test_set_setting_uses_utc_timestamps(test_db, monkeypatch):
+    """
+    Test that set_setting() uses UTC timestamps (T3.2-BE-017).
+
+    TIER 1 Rule 3: Always use UTC for timestamps.
+    """
+
+    # Arrange
+    def mock_get_connection():
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _mock():
+            yield test_db
+
+        return _mock()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
+
+    # Act
+    set_setting("test_utc_setting", json.dumps("test_value"))
+
+    # Assert: Timestamp uses UTC (ends with +00:00 or Z)
+    result = test_db.execute(
+        "SELECT updated_at FROM settings WHERE key = ?", ("test_utc_setting",)
+    ).fetchone()
+
+    timestamp = result["updated_at"]
+    assert timestamp.endswith("+00:00") or timestamp.endswith(
+        "Z"
+    ), f"Timestamp must use UTC, got: {timestamp}"
+
+
+def test_set_setting_stores_json_encoded_values(test_db, monkeypatch):
+    """
+    Test that set_setting() stores values as JSON-encoded strings (T3.2-BE-017).
+
+    Verifies values are stored as strings, not raw integers/booleans.
+    """
+
+    # Arrange
+    def mock_get_connection():
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _mock():
+            yield test_db
+
+        return _mock()
+
+    monkeypatch.setattr("backend.db.queries.get_connection", mock_get_connection)
+
+    # Act: Store various types as JSON
+    set_setting("int_setting", json.dumps(45))
+    set_setting("bool_setting", json.dumps(True))
+    set_setting("string_setting", json.dumps("hello"))
+
+    # Assert: All values stored as JSON strings
+    int_result = test_db.execute(
+        "SELECT value FROM settings WHERE key = ?", ("int_setting",)
+    ).fetchone()
+    assert int_result["value"] == "45"  # String, not int
+    assert json.loads(int_result["value"]) == 45  # Can parse back to int
+
+    bool_result = test_db.execute(
+        "SELECT value FROM settings WHERE key = ?", ("bool_setting",)
+    ).fetchone()
+    assert bool_result["value"] == "true"  # String, not bool
+    assert json.loads(bool_result["value"]) is True  # Can parse back to bool
+
+    string_result = test_db.execute(
+        "SELECT value FROM settings WHERE key = ?", ("string_setting",)
+    ).fetchone()
+    assert string_result["value"] == '"hello"'  # JSON-encoded string
+    assert json.loads(string_result["value"]) == "hello"  # Can parse back
