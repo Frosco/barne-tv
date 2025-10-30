@@ -10,7 +10,7 @@ import json
 import logging
 from fastapi import APIRouter, Request, Response, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from googleapiclient.errors import HttpError
 
@@ -70,6 +70,18 @@ class ReplayVideoRequest(BaseModel):
     """Request model for manual video replay (Story 3.1)."""
 
     videoId: str
+
+
+class UpdateSettingsRequest(BaseModel):
+    """Request model for updating settings (Story 3.2).
+
+    Supports partial updates - all fields optional.
+    TIER 1 Rule 5: Pydantic validation enforces ranges.
+    """
+
+    daily_limit_minutes: int | None = Field(None, ge=5, le=180)
+    grid_size: int | None = Field(None, ge=4, le=15)
+    audio_enabled: bool | None = None
 
 
 # =============================================================================
@@ -208,6 +220,34 @@ def admin_logout(request: Request, response: Response):
 
     # TIER 2 Rule 12: Consistent response structure
     return {"success": True, "redirect": "/admin/login"}
+
+
+@router.get("/admin/dashboard", response_class=HTMLResponse)
+@limiter.limit("100/minute")
+def admin_dashboard_page(request: Request, response: Response):
+    """
+    Serve admin dashboard page with navigation to all admin sections.
+
+    TIER 2 Rule 10: Require authentication.
+
+    Args:
+        request: FastAPI Request object (for auth and templates)
+        response: FastAPI Response object
+
+    Returns:
+        HTML response with dashboard template
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "admin/dashboard.html",
+        {
+            "request": request,
+            "interface": "admin",
+        },
+    )
 
 
 # =============================================================================
@@ -1106,3 +1146,276 @@ def admin_history_page(request: Request, response: Response):
             "dev_mode": True,  # TODO: Use config.DEBUG in production
         },
     )
+
+
+# =============================================================================
+# ADMIN SETTINGS ROUTES (Story 3.2)
+# =============================================================================
+
+
+@router.get("/admin/settings", response_class=HTMLResponse)
+@limiter.limit("100/minute")
+def admin_settings_page(request: Request, response: Response):
+    """
+    Serve admin settings configuration page.
+
+    TIER 2 Rule 10: Require authentication via require_auth().
+
+    Args:
+        request: FastAPI Request object for accessing app state and authentication
+        response: FastAPI Response object
+
+    Returns:
+        HTML response with settings template
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "admin/settings.html",
+        {
+            "request": request,
+            "interface": "admin",
+            "dev_mode": True,  # TODO: Use config.DEBUG in production
+        },
+    )
+
+
+@router.get("/api/admin/settings")
+@limiter.limit("100/minute")
+def get_settings(request: Request):
+    """
+    Get current application settings (Story 3.2).
+
+    TIER 1 Rules Applied:
+    - Rule 3: UTC time handling via get_setting()
+    - Rule 4: NEVER return admin_password_hash (security)
+    - Rule 6: SQL placeholders via get_setting()
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    Args:
+        request: FastAPI Request object for authentication
+
+    Returns:
+        JSON with settings dict containing:
+        - daily_limit_minutes (int): 5-180
+        - grid_size (int): 4-15
+        - audio_enabled (bool): true/false
+
+    Example:
+        GET /api/admin/settings
+        Response: {
+            "settings": {
+                "daily_limit_minutes": 30,
+                "grid_size": 9,
+                "audio_enabled": true
+            }
+        }
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Fetch settings from database (JSON-encoded strings)
+        # TIER 1 Rule 6: SQL placeholders via get_setting()
+        daily_limit_str = get_setting("daily_limit_minutes")
+        grid_size_str = get_setting("grid_size")
+        audio_enabled_str = get_setting("audio_enabled")
+
+        # Parse JSON-encoded values
+        daily_limit = int(daily_limit_str)
+        grid_size = int(grid_size_str)
+        audio_enabled = audio_enabled_str == "true"
+
+        # TIER 2 Rule 12: Consistent response structure
+        # TIER 1 Rule 4: NEVER return admin_password_hash
+        return JSONResponse(
+            content={
+                "settings": {
+                    "daily_limit_minutes": daily_limit,
+                    "grid_size": grid_size,
+                    "audio_enabled": audio_enabled,
+                }
+            }
+        )
+
+    except KeyError as e:
+        logger.error(f"Settings key not found: {e}")
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+    except Exception as e:
+        logger.error(f"Error fetching settings: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.put("/api/admin/settings")
+@limiter.limit("100/minute")
+def update_settings(request: Request, data: UpdateSettingsRequest):
+    """
+    Update application settings (partial update supported) (Story 3.2).
+
+    TIER 1 Rules Applied:
+    - Rule 3: UTC time via set_setting()
+    - Rule 5: Pydantic validation enforces ranges (5-180, 4-15)
+    - Rule 6: SQL placeholders via set_setting()
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian success message
+
+    Args:
+        request: FastAPI Request object for authentication
+        data: UpdateSettingsRequest with optional fields for partial update
+
+    Returns:
+        Success: {
+            "success": true,
+            "settings": {...updated values...},
+            "message": "Innstillinger lagret"
+        }
+        Error: 422 (validation), 500 (internal)
+
+    Example:
+        PUT /api/admin/settings
+        Body: {"daily_limit_minutes": 45}
+        Response: {
+            "success": true,
+            "settings": {
+                "daily_limit_minutes": 45,
+                "grid_size": 9,
+                "audio_enabled": true
+            },
+            "message": "Innstillinger lagret"
+        }
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Import set_setting here (it's in queries module)
+        from backend.db.queries import set_setting
+
+        # Partial update: only update provided fields
+        # TIER 1 Rule 3: UTC time handled by set_setting()
+        # TIER 1 Rule 6: SQL placeholders handled by set_setting()
+        if data.daily_limit_minutes is not None:
+            set_setting("daily_limit_minutes", str(data.daily_limit_minutes))
+
+        if data.grid_size is not None:
+            set_setting("grid_size", str(data.grid_size))
+
+        if data.audio_enabled is not None:
+            # JSON-encode boolean as 'true'/'false' string
+            set_setting("audio_enabled", "true" if data.audio_enabled else "false")
+
+        # Fetch updated settings to return
+        daily_limit = int(get_setting("daily_limit_minutes"))
+        grid_size = int(get_setting("grid_size"))
+        audio_enabled = get_setting("audio_enabled") == "true"
+
+        logger.info("Settings updated successfully")
+
+        # TIER 2 Rule 12: Consistent response structure
+        # TIER 3 Rule 14: Norwegian success message
+        return JSONResponse(
+            content={
+                "success": True,
+                "settings": {
+                    "daily_limit_minutes": daily_limit,
+                    "grid_size": grid_size,
+                    "audio_enabled": audio_enabled,
+                },
+                "message": "Innstillinger lagret",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error updating settings: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.post("/api/admin/settings/reset")
+@limiter.limit("100/minute")
+def reset_settings(request: Request):
+    """
+    Reset all settings to default values (Story 3.2).
+
+    CRITICAL: NEVER reset admin_password_hash (security requirement).
+
+    TIER 1 Rules Applied:
+    - Rule 3: UTC time via set_setting()
+    - Rule 4: NEVER reset admin password (security)
+    - Rule 6: SQL placeholders via set_setting()
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian success message
+
+    Args:
+        request: FastAPI Request object for authentication
+
+    Returns:
+        Success: {
+            "success": true,
+            "settings": {...default values...},
+            "message": "Innstillinger tilbakestilt"
+        }
+
+    Example:
+        POST /api/admin/settings/reset
+        Response: {
+            "success": true,
+            "settings": {
+                "daily_limit_minutes": 30,
+                "grid_size": 9,
+                "audio_enabled": true
+            },
+            "message": "Innstillinger tilbakestilt"
+        }
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Import set_setting here (it's in queries module)
+        from backend.db.queries import set_setting
+
+        # Reset to defaults (from schema.sql initial values)
+        # TIER 1 Rule 3: UTC time handled by set_setting()
+        # TIER 1 Rule 6: SQL placeholders handled by set_setting()
+        set_setting("daily_limit_minutes", "30")
+        set_setting("grid_size", "9")
+        set_setting("audio_enabled", "true")
+
+        # TIER 1 Rule 4: NEVER reset admin_password_hash
+
+        logger.info("Settings reset to defaults")
+
+        # TIER 2 Rule 12: Consistent response structure
+        # TIER 3 Rule 14: Norwegian success message
+        return JSONResponse(
+            content={
+                "success": True,
+                "settings": {"daily_limit_minutes": 30, "grid_size": 9, "audio_enabled": True},
+                "message": "Innstillinger tilbakestilt",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error resetting settings: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
