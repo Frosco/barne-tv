@@ -349,7 +349,13 @@
 </style>
 
 <script type="module">
-  import { initHistory } from '/src/admin/history.js';
+  {% if dev_mode %}
+  {# Development: Import from Vite dev server #}
+  import { initHistory } from 'http://localhost:5173/src/admin/history.js';
+  {% else %}
+  {# Production: Import from built assets #}
+  import { initHistory } from '/static/assets/admin/history.js';
+  {% endif %}
   initHistory();
 </script>
 {% endblock %}
