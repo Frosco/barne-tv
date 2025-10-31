@@ -43,6 +43,18 @@
   {# Default content - child templates will override this block #}
   {% endblock %}
 
+  {# Footer with version number (Story 3.X) #}
+  <footer style="text-align: center; padding: var(--space-md, 16px); margin-top: var(--space-xl, 32px);">
+    <span class="version-number"></span>
+  </footer>
+
+  {# Load version display module (Story 3.X) #}
+  {% if dev_mode %}
+    <script type="module" src="http://localhost:5173/src/shared/version.js"></script>
+  {% else %}
+    <script type="module" src="/static/assets/shared/version.js"></script>
+  {% endif %}
+
   {#
     Scripts block - loads appropriate entry point based on interface type.
 

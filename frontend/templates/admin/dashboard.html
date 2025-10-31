@@ -5,12 +5,24 @@
 {% block content %}
 <div class="admin-container">
   <header class="admin-header">
-    <h1 class="admin-title">Admin Dashboard</h1>
-    <p class="admin-subtitle">Velkommen til administrasjonsportalen</p>
+    <div class="header-content">
+      <div class="header-text">
+        <h1 class="admin-title">Admin Dashboard</h1>
+        <p class="admin-subtitle">Velkommen til administrasjonsportalen</p>
+      </div>
+      <div class="header-actions">
+        <a href="#" class="help-link" onclick="event.preventDefault(); alert('Se docs/getting-started-no.md for full veiledning'); return false;" aria-label="Åpne dokumentasjon">
+          📖 Kom i gang
+        </a>
+      </div>
+    </div>
   </header>
 
   <section class="dashboard-section">
     <h2 class="section-title">Administrasjon</h2>
+    <span class="help-text" style="display: block; margin-bottom: 1rem;">
+      Oversikt over administrasjonsfunksjoner. Bruk Kanaler for å legge til innhold, Historikk for å se hva barnet har sett, og Innstillinger for å justere daglige grenser.
+    </span>
     <div class="dashboard-cards">
       <a href="/admin/channels" class="dashboard-card">
         <div class="card-icon">📺</div>
@@ -36,15 +48,53 @@
     <a href="/" class="btn btn-secondary">Gå til barneskjermen</a>
     <a href="/admin/logout" class="btn btn-danger">Logg ut</a>
   </section>
+
+  <!-- FAQ Section (Story 3.X) -->
+  <div id="faq-container"></div>
 </div>
 
+<script type="module">
+  {% if dev_mode %}
+  {# Development: Import from Vite dev server #}
+  import { initDashboard } from 'http://localhost:5173/src/admin/dashboard.js';
+  {% else %}
+  {# Production: Import from built assets #}
+  import { initDashboard } from '/static/assets/admin/dashboard.js';
+  {% endif %}
+  initDashboard();
+</script>
+
 <style>
+/* Header with documentation link */
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.header-text {
+  flex: 1;
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--space-md);
+}
+
 .dashboard-section {
   background: white;
   padding: var(--space-xl);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   margin-bottom: var(--space-xl);
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .dashboard-cards {

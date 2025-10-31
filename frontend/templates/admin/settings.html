@@ -28,9 +28,12 @@
           min="5"
           max="180"
           step="5"
+          aria-describedby="daily-limit-help"
           required
         />
-        <span class="help-text">Hvor mange minutter barnet kan se videoer per dag (5-180 minutter)</span>
+        <span class="help-text" id="daily-limit-help">
+          <strong>Daglig grense:</strong> Tidsbegrensning for hvor lenge barnet kan se videoer hver dag. Grensen tilbakestilles ved midnatt (UTC). Når det er mindre enn 10 minutter igjen, går systemet over i 'avslutningsmodus' som bare viser korte videoer. Etter at grensen er nådd, får barnet velge én siste 'takkvideo' (maks 5 minutter).
+        </span>
         <span class="error-text" id="daily-limit-error"></span>
       </div>
 
@@ -44,9 +47,12 @@
           class="form-input"
           min="4"
           max="15"
+          aria-describedby="grid-size-help"
           required
         />
-        <span class="help-text">Hvor mange videoer som vises av gangen (4-15 videoer)</span>
+        <span class="help-text" id="grid-size-help">
+          Hvor mange videoer som vises på skjermen samtidig (4-15 videoer). Færre videoer gir større bilder, flere videoer gir mer variasjon.
+        </span>
         <span class="error-text" id="grid-size-error"></span>
       </div>
 
@@ -58,10 +64,13 @@
             id="audio-enabled"
             name="audio_enabled"
             class="form-checkbox"
+            aria-describedby="audio-help"
           />
           Lydvarsler aktivert
         </label>
-        <span class="help-text">Spill av lydvarsler ved 10, 5, og 2 minutter igjen</span>
+        <span class="help-text" id="audio-help">
+          Spill av lydvarsler ved 10, 5, og 2 minutter igjen. Lydvarslene er enkle 'pling'-lyder, ikke forstyrrende alarmer.
+        </span>
       </div>
 
       <!-- Form actions -->

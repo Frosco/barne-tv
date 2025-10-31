@@ -18,6 +18,7 @@
  */
 
 import { fetchSettings, updateSettings, resetSettings } from '../shared/api.js';
+import { createTooltip } from '../shared/help.js';
 
 // State
 let originalSettings = {};
@@ -29,6 +30,9 @@ let isDirty = false;
  */
 export function initSettings() {
   loadSettings();
+
+  // Initialize tooltips (Story 3.X)
+  initTooltips();
 
   // Attach form submit handler
   const form = document.getElementById('settings-form');
@@ -47,6 +51,45 @@ export function initSettings() {
   inputs.forEach((input) => {
     input.addEventListener('input', handleInputChange);
   });
+}
+
+/**
+ * Initialize tooltips for settings (Story 3.X).
+ * Adds info icon tooltips next to each setting label.
+ */
+function initTooltips() {
+  // Daily limit tooltip
+  const dailyLimitLabel = document.querySelector('label[for="daily-limit"]');
+  if (dailyLimitLabel) {
+    const dailyLimitTooltip = createTooltip(
+      'ℹ️',
+      'Grensen tilbakestilles hver natt kl. 00:00 UTC. Videoer som går over grensen avbrytes eller får fullføre basert på lengde.',
+      'tooltip-daily-limit'
+    );
+    dailyLimitLabel.appendChild(dailyLimitTooltip);
+  }
+
+  // Grid size tooltip
+  const gridSizeLabel = document.querySelector('label[for="grid-size"]');
+  if (gridSizeLabel) {
+    const gridSizeTooltip = createTooltip(
+      'ℹ️',
+      'Færre videoer gir større bilder. Flere videoer gir mer variasjon men mindre bilder.',
+      'tooltip-grid-size'
+    );
+    gridSizeLabel.appendChild(gridSizeTooltip);
+  }
+
+  // Audio enabled tooltip
+  const audioLabel = document.querySelector('label[for="audio-enabled"]');
+  if (audioLabel) {
+    const audioTooltip = createTooltip(
+      'ℹ️',
+      "Lydvarsler er enkle 'pling'-lyder, ikke forstyrrende alarmer.",
+      'tooltip-audio-enabled'
+    );
+    audioLabel.appendChild(audioTooltip);
+  }
 }
 
 /**

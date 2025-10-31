@@ -1186,6 +1186,213 @@ button {
   }
 }
 
+/* ========================================
+   Help Components (Story 3.X)
+   ======================================== */
+
+/* Help Text - Inline with inputs */
+.help-text {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-neutral-gray);
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+.help-text::before {
+  content: 'ℹ️ ';
+  margin-right: 0.25rem;
+}
+
+/* Tooltip Container */
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+  margin-left: 0.25rem;
+}
+
+/* Tooltip Trigger Button */
+.tooltip-trigger {
+  background: transparent;
+  border: none;
+  cursor: help;
+  padding: 0.25rem;
+  font-size: 1rem;
+  color: var(--color-sky-blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  transition: color 0.2s ease;
+}
+
+.tooltip-trigger:hover {
+  color: var(--color-primary-yellow);
+}
+
+.tooltip-trigger:focus {
+  outline: 2px solid var(--color-sky-blue);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Tooltip Content */
+.tooltip-content {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border: 1px solid var(--color-neutral-gray);
+  padding: 0.75rem;
+  max-width: 300px;
+  width: max-content;
+  min-width: 200px;
+  box-shadow: var(--shadow-md);
+  z-index: 1000;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-charcoal-text);
+  text-align: left;
+}
+
+/* Tooltip Arrow */
+.tooltip-content::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid white;
+}
+
+/* Tooltip positioning fallback - if not enough space above */
+@media (max-width: 768px) {
+  .tooltip-content {
+    left: auto;
+    right: 0;
+    transform: none;
+    max-width: calc(100vw - 2rem);
+  }
+
+  .tooltip-content::after {
+    left: auto;
+    right: 1rem;
+    transform: none;
+  }
+}
+
+/* FAQ Accordion Section */
+.faq-section {
+  margin-top: var(--space-2xl);
+  margin-bottom: var(--space-2xl);
+}
+
+.faq-item {
+  margin-bottom: var(--space-sm);
+  border: 1px solid var(--color-light-gray);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* FAQ Question Button */
+.faq-question {
+  width: 100%;
+  text-align: left;
+  background: white;
+  border: none;
+  padding: var(--space-md) var(--space-lg);
+  cursor: pointer;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--color-charcoal-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background-color 0.2s ease;
+  font-family: inherit;
+}
+
+.faq-question::after {
+  content: '▼';
+  font-size: 0.75rem;
+  color: var(--color-neutral-gray);
+  transition: transform 0.2s ease;
+}
+
+.faq-question[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+
+.faq-question:hover {
+  background: var(--color-light-gray);
+}
+
+.faq-question:focus {
+  outline: 2px solid var(--color-sky-blue);
+  outline-offset: -2px;
+}
+
+.faq-question[aria-expanded="true"] {
+  background: var(--color-light-gray);
+  border-bottom: 1px solid var(--color-neutral-gray);
+}
+
+/* FAQ Answer */
+.faq-answer {
+  padding: var(--space-md) var(--space-lg);
+  background: white;
+  font-size: var(--font-size-body);
+  line-height: 1.6;
+  color: var(--color-charcoal-text);
+}
+
+.faq-answer[hidden] {
+  display: none;
+}
+
+.faq-answer p {
+  margin: 0;
+}
+
+/* Version Display in Footer */
+.version-number {
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-gray);
+  margin-top: var(--space-sm);
+}
+
+/* Secondary Help Link (Documentation Link) */
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-light-gray);
+  color: var(--color-charcoal-text);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-small-body);
+  font-weight: 500;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.help-link:hover {
+  background: var(--color-neutral-gray);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.help-link:focus {
+  outline: 2px solid var(--color-sky-blue);
+  outline-offset: 2px;
+}
+
 /* =============================================================================
    VIDEO PLAYER (Story 2.2)
    ============================================================================= */

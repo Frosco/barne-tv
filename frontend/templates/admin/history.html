@@ -11,10 +11,13 @@
 
   <!-- Filter form -->
   <form id="filter-form" class="filter-form">
+    <span class="help-text" id="filter-help" style="margin-bottom: 1rem; display: block;">
+      Filtrer historikk etter dato, kanal eller søk etter tittel. "Spill av igjen"-funksjonen lar deg forhåndsvise videoer uten å telle mot barnets daglige grense.
+    </span>
     <div class="filter-row">
       <div class="form-group">
         <label for="date-from" class="form-label">Fra dato</label>
-        <input type="date" id="date-from" name="dateFrom" class="form-input" />
+        <input type="date" id="date-from" name="dateFrom" class="form-input" aria-describedby="filter-help" />
       </div>
 
       <div class="form-group">

@@ -15,14 +15,23 @@
     <form data-add-channel-form class="add-channel-form">
       <div class="form-group">
         <label for="channel-input" class="form-label">YouTube kanal URL eller ID</label>
+        <span class="help-text" id="channel-input-help">
+          Lim inn YouTube-kanal URL eller kanal-ID. Du kan også legge til spilleliste-URL.
+        </span>
         <input
           type="text"
           id="channel-input"
           data-channel-input
           class="form-input"
           placeholder="https://www.youtube.com/@Blippi eller kanal ID"
+          aria-describedby="channel-input-help channel-type-explanation"
           required
         />
+        <span class="help-text" id="channel-type-explanation" style="margin-top: 0.5rem; display: block;">
+          <strong>Kanaler:</strong> En YouTube-kanal inneholder alle videoer publisert av en bestemt YouTube-konto. Når du legger til en kanal, hentes alle dens videoer.
+          <br>
+          <strong>Spillelister:</strong> En spilleliste er en kuratert samling videoer. Dette kan være laget av kanaleieren eller andre brukere.
+        </span>
       </div>
       <button type="submit" data-add-button class="btn btn-primary">
         Legg til kanal
