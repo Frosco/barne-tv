@@ -467,14 +467,316 @@ As a parent using the admin interface,
 I want inline help and guidance,
 so that I can effectively manage the application.
 
+**Architecture Context:**
+
+This story implements help and documentation features for the admin interface, building on architectural decisions from the foundation phase:
+
+*Accessibility Requirements (docs/architecture/accessibility-implementation.md):*
+- WCAG 2.1 Level AA compliance mandatory for all admin interfaces
+- Help text patterns use `aria-describedby` for associating labels with explanatory text
+- Tooltips must be keyboard accessible (not hover-only)
+- Interactive help elements (FAQ accordions) use proper ARIA roles: `role="button"`, `aria-expanded`, `aria-controls`
+- Screen reader support: help text announced when field receives focus
+- Keyboard navigation: Tab to help icons, Enter/Space to activate tooltips
+- Color contrast: Help text minimum 4.5:1 ratio, icons 3:1 ratio against background
+- Focus indicators: Visible outline on all interactive help elements
+
+*Frontend Structure (docs/architecture/source-tree.md):*
+- Admin templates: `frontend/templates/admin/` (dashboard.html, channels.html, history.html, settings.html)
+- Admin modules: `frontend/src/admin/` (dashboard.js, channels.js, history.js, settings.js)
+- Shared components: `frontend/src/shared/` (help.js for tooltip/help text components)
+- Static documentation: `docs/getting-started-no.md` (Markdown format, Norwegian language)
+- Tests collocated: `frontend/src/shared/help.test.js` for help component tests
+
+*API Patterns (docs/architecture/api-specification.md):*
+- Version display: No dedicated endpoint needed, version read from `package.json` at build time and injected into base template
+- All admin pages use `require_auth()` middleware for session authentication
+- Norwegian error messages throughout (e.g., "Kunne ikke laste hjelp")
+
+*Component Organization (docs/architecture/components.md):*
+- Progressive enhancement: Help text present in HTML, JavaScript adds interactivity (tooltips, accordions)
+- Reusable help component in `frontend/src/shared/help.js` provides tooltip and expandable help patterns
+- No global state: Help component state managed per-instance
+
+*Norwegian UI Requirements (docs/architecture/coding-standards.md):*
+- All help text, labels, and documentation in Norwegian
+- Code and logs remain in English
+- FAQ questions and answers in Norwegian
+- Getting Started guide entirely in Norwegian
+
 **Acceptance Criteria:**
-1. Help text appears on each admin page explaining functionality
-2. Getting Started guide created in Norwegian (docs/getting-started-no.md)
-3. FAQ section added to admin interface with common questions
-4. Tooltips on complex settings (hover to see explanation)
-5. Link to full documentation from admin dashboard
-6. Contact/support information displayed (if applicable)
-7. Version number displayed in admin footer
-8. Help text explains key concepts: channels, playlists, daily limits, etc.
+
+1. **Help text appears on each admin page explaining functionality**
+   - **Channels page** (`frontend/templates/admin/channels.html`):
+     - Help text above channel input: "Lim inn YouTube-kanal URL eller kanal-ID"
+     - Explain channel vs playlist: "Kanaler inneholder alle videoer fra en YouTube-konto. Spillelister er kuraterte samlinger."
+     - Help for "Oppdater" button: "Henter nye videoer fra denne kanalen"
+   - **History page** (`frontend/templates/admin/history.html`):
+     - Explain filters: "Filtrer historikk etter dato, kanal eller søk etter tittel"
+     - Explain "Spill av igjen": "Spiller av video uten å telle mot barnets daglige grense"
+   - **Settings page** (`frontend/templates/admin/settings.html`):
+     - Daily limit help: "Hvor mange minutter barnet kan se videoer hver dag. Videoen går over i 'avslutningsmodus' ved 10 minutter igjen."
+     - Grid size help: "Antall videoer som vises på skjermen samtidig (4-15)"
+     - Audio help: "Lydvarsler spilles av ved 10, 5, og 2 minutter igjen"
+   - **Dashboard page** (`frontend/templates/admin/dashboard.html`):
+     - Statistics explanation: "Oversikt over dagens aktivitet og totale innhold"
+   - Implementation: Help text uses `<span class="help-text">` with `id` attributes, associated via `aria-describedby` on inputs
+   - Styling: Smaller font, muted color, icon prefix (ℹ️ or question mark icon)
+
+2. **Getting Started guide created in Norwegian**
+   - Location: `docs/getting-started-no.md` (Markdown format)
+   - Sections:
+     - **Velkommen** - Brief introduction to application purpose
+     - **Første oppsett** - Initial setup steps (login, add first channel)
+     - **Legge til kanaler** - How to find and add YouTube channels/playlists
+     - **Administrere innstillinger** - Explain daily limit, grid size, audio settings
+     - **Se historikk** - How to view watch history and replay videos
+     - **Nøkkelkonsepter** - Explain channels, playlists, daily limits, wind-down mode, grace video
+     - **Vanlige spørsmål** - Quick FAQ (3-5 common questions)
+   - Tone: Friendly, clear, non-technical
+   - Length: ~500-800 words
+   - Format: Markdown with headings, lists, and emphasis
+   - Accessibility: Proper heading hierarchy (h1, h2, h3), descriptive link text
+   - Not served via web interface in v1 (parent reads locally or prints)
+
+3. **FAQ section added to admin interface**
+   - Location: `frontend/templates/admin/dashboard.html` (expandable section at bottom)
+   - Component: `frontend/src/shared/help.js` provides `createFAQ()` function
+   - Structure: Collapsible accordion with questions
+   - Questions included (Norwegian):
+     - "Hvordan legger jeg til en ny YouTube-kanal?" - Step-by-step with screenshot reference
+     - "Hva er forskjellen på kanaler og spillelister?" - Clear explanation
+     - "Hvordan fungerer den daglige grensen?" - Explain time-based limit, wind-down, grace video
+     - "Kan barnet se videoer etter at grensen er nådd?" - Explain grace video (one video ≤5 min)
+     - "Hva betyr 'avslutningsmodus'?" - Explain wind-down mode filtering
+     - "Hvordan kan jeg spille av en spesifikk video for barnet?" - Explain "Spill av igjen" feature
+     - "Telles foreldre-avspilling mot barnets grense?" - Explain `manual_play=true` exclusion
+   - Accessibility:
+     - Each question is `<button role="button" aria-expanded="false" aria-controls="faq-answer-1">`
+     - Answers wrapped in `<div id="faq-answer-1" hidden>`
+     - Keyboard: Tab to question, Enter/Space to expand/collapse
+     - Screen reader: Announces expanded/collapsed state
+   - Styling: Clear visual distinction (background color change when expanded)
+
+4. **Tooltips on complex settings (keyboard accessible)**
+   - Implementation: `frontend/src/shared/help.js` provides `createTooltip()` function
+   - Trigger: Info icon (ℹ️) next to setting label
+   - Activation: Click icon OR focus icon + Enter/Space (not hover-only)
+   - Content: Short explanation in Norwegian (2-3 sentences max)
+   - Tooltips added to:
+     - Daily limit setting: "Grensen tilbakestilles hver natt kl. 00:00 UTC. Videoer som går over grensen avbrytes eller får fullføre basert på lengde."
+     - Grid size setting: "Færre videoer gir større bilder. Flere videoer gir mer variasjon men mindre bilder."
+     - Audio setting: "Lydvarsler er enkle 'pling'-lyder, ikke forstyrrende alarmer."
+   - Accessibility:
+     - Tooltip content has `role="tooltip"` and `id="tooltip-daily-limit"`
+     - Trigger button has `aria-describedby="tooltip-daily-limit"`
+     - ESC key closes tooltip
+     - Focus returns to trigger button after close
+     - Color contrast: 4.5:1 minimum for tooltip text
+   - Positioning: Above or below trigger (avoid obscuring content)
+   - Styling: Light background, subtle shadow, arrow pointing to trigger
+
+5. **Link to full documentation from admin dashboard**
+   - Location: `frontend/templates/admin/dashboard.html` in header or sidebar
+   - Link text: "📖 Kom i gang" (accessible text, not just icon)
+   - Target: Opens `docs/getting-started-no.md` in new window (if served) OR displays instructions to read local file
+   - Alternative for v1: Display message: "Se docs/getting-started-no.md for full veiledning"
+   - Accessibility:
+     - Clear link text (not "click here")
+     - `target="_blank"` with `rel="noopener noreferrer"` if external
+     - Screen reader hint if opens in new window: `aria-label="Åpne dokumentasjon i nytt vindu"`
+   - Styling: Prominent but not distracting (secondary button style)
+
+6. **Contact/support information** (CLARIFICATION: NOT APPLICABLE for v1)
+   - Self-hosted family application - no support channel needed
+   - Parent is the administrator - no external support contact
+   - Future consideration: If project open-sourced, add GitHub Issues link
+   - For v1: Omit this feature entirely
+
+7. **Version number displayed in admin footer**
+   - Location: `frontend/templates/base.html` footer (inherited by all admin pages)
+   - Source: Read from `package.json` version field at build time
+   - Implementation: Vite injects version via `import.meta.env.VITE_APP_VERSION`
+   - Display format: "Versjon 1.2.3" (Norwegian label)
+   - Styling: Small, muted text in footer (non-intrusive)
+   - Accessibility: Semantic footer tag, version text readable by screen readers
+   - No link or interaction (static display only)
+   - Future enhancement: Link to changelog/release notes
+
+8. **Help text explains key concepts**
+   - **Kanaler** (Channels): "En YouTube-kanal inneholder alle videoer publisert av en bestemt YouTube-konto. Når du legger til en kanal, hentes alle dens videoer."
+   - **Spillelister** (Playlists): "En spilleliste er en kuratert samling videoer. Dette kan være laget av kanaleieren eller andre brukere."
+   - **Daglig grense** (Daily Limit): "Tidsbegrensning for hvor lenge barnet kan se videoer hver dag. Grensen tilbakestilles ved midnatt (UTC). Videoer i 'avslutningsmodus' og 'takkvideo' telles ikke mot neste dag."
+   - **Avslutningsmodus** (Wind-down Mode): "Når det er mindre enn 10 minutter igjen, filtreres rutenettet til å bare vise korte videoer som passer i gjenstående tid. Dette hjelper barnet med å avslutte naturlig."
+   - **Takkvideo** (Grace Video): "Etter at grensen er nådd, får barnet velge én siste video (maks 5 minutter). Denne telles ikke mot dagens eller morgendagens grense."
+   - **Manuell avspilling** (Manual Play): "Når du som forelder spiller av en video fra historikken, telles den ikke mot barnets daglige grense."
+   - Location: Integrated into help text on relevant pages (Settings for limits, Dashboard for overview)
+   - Format: Short definitions (1-2 sentences each) in Norwegian
+   - Accessibility: Each concept defined when first encountered, with consistent terminology throughout interface
+
+**Dependencies:**
+- Story 3.1 (Watch History): Help text explains manual replay feature
+- Story 3.2 (Settings): Help text explains each setting in detail
+- Story 1.4 (Admin Authentication): All admin pages require authentication
+- Accessibility Implementation (docs/architecture/accessibility-implementation.md): WCAG 2.1 AA compliance patterns
+
+**Technical Implementation Notes:**
+
+*Tooltip Component Pattern (frontend/src/shared/help.js):*
+```javascript
+/**
+ * Create keyboard-accessible tooltip
+ * @param {string} triggerText - Text/icon for trigger button
+ * @param {string} tooltipContent - Help text content
+ * @param {string} tooltipId - Unique ID for tooltip element
+ * @returns {HTMLElement} - Trigger button with tooltip
+ */
+export function createTooltip(triggerText, tooltipContent, tooltipId) {
+  const container = document.createElement('span');
+  container.className = 'tooltip-container';
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'tooltip-trigger';
+  trigger.textContent = triggerText;
+  trigger.setAttribute('aria-describedby', tooltipId);
+
+  const tooltip = document.createElement('div');
+  tooltip.id = tooltipId;
+  tooltip.role = 'tooltip';
+  tooltip.className = 'tooltip-content';
+  tooltip.textContent = tooltipContent;
+  tooltip.hidden = true;
+
+  trigger.addEventListener('click', () => {
+    tooltip.hidden = !tooltip.hidden;
+    trigger.setAttribute('aria-expanded', !tooltip.hidden);
+  });
+
+  // Close on ESC key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !tooltip.hidden) {
+      tooltip.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.focus();
+    }
+  });
+
+  container.appendChild(trigger);
+  container.appendChild(tooltip);
+  return container;
+}
+```
+
+*FAQ Accordion Pattern:*
+```html
+<section class="faq-section" aria-labelledby="faq-heading">
+  <h2 id="faq-heading">Vanlige spørsmål</h2>
+
+  <div class="faq-item">
+    <button
+      class="faq-question"
+      aria-expanded="false"
+      aria-controls="faq-answer-1"
+    >
+      Hvordan legger jeg til en ny YouTube-kanal?
+    </button>
+    <div id="faq-answer-1" class="faq-answer" hidden>
+      <p>Gå til "Kanaler"-fanen, lim inn kanal URL, og klikk "Legg til"...</p>
+    </div>
+  </div>
+
+  <!-- More FAQ items... -->
+</section>
+```
+
+*Help Text Styling (CSS):*
+```css
+.help-text {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary); /* 5.8:1 contrast ratio */
+  margin-top: 0.25rem;
+}
+
+.help-text::before {
+  content: 'ℹ️ ';
+  margin-right: 0.25rem;
+}
+
+.tooltip-trigger {
+  background: transparent;
+  border: none;
+  cursor: help;
+  padding: 0.25rem;
+  font-size: 1rem;
+}
+
+.tooltip-trigger:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.tooltip-content {
+  position: absolute;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  padding: 0.75rem;
+  max-width: 300px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+```
+
+*Version Injection Pattern (vite.config.js):*
+```javascript
+import { defineConfig } from 'vite';
+import { readFileSync } from 'fs';
+
+const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'));
+
+export default defineConfig({
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version)
+  },
+  // ... other config
+});
+```
+
+*Getting Started Guide Structure:*
+```markdown
+# Kom i gang med Safe YouTube Viewer for Kids
+
+## Velkommen
+Denne applikasjonen lar barnet ditt se YouTube-videoer fra godkjente kanaler...
+
+## Første oppsett
+1. Logg inn med admin-passordet
+2. Klikk på "Kanaler"-fanen
+3. Lim inn URL til første YouTube-kanal...
+
+## Legge til kanaler
+For å finne en YouTube-kanal URL:
+- Gå til kanalen på YouTube
+- Kopier URL fra adressefeltet...
+
+## [Continue with other sections]
+```
+
+*Performance Considerations:*
+- Help text static (no API calls)
+- Tooltips lazy-loaded (created on first interaction)
+- FAQ accordion: Show/hide with CSS `hidden` attribute (no DOM manipulation)
+- Version number cached at build time (no runtime lookups)
+
+*Accessibility Testing Checklist:*
+- [ ] All help text readable by screen readers
+- [ ] Tooltips keyboard accessible (Tab, Enter, ESC)
+- [ ] FAQ accordion keyboard navigable
+- [ ] Color contrast meets WCAG AA (4.5:1 for text)
+- [ ] Focus indicators visible on all interactive elements
+- [ ] No keyboard traps in tooltip/FAQ interactions
+- [ ] ARIA attributes correctly implemented (`aria-expanded`, `aria-controls`, `aria-describedby`)
+- [ ] Heading hierarchy logical (h1 → h2 → h3)
 
 ---

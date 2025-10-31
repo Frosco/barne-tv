@@ -11,16 +11,16 @@ I want automatic daily viewing limits,
 so that screen time is controlled without manual intervention.
 
 **Acceptance Criteria:**
-1. Viewing session tracked in database (start time, video count, status)
-2. Daily limit retrieved from settings (default: 5 videos)
-3. Session starts when child first selects a video
-4. Video counter increments with each completed video
-5. When limit reached, redirect to "That's All for Today" screen
-6. Limit resets at midnight (configurable timezone)
-7. Parent can reset limit early via admin interface
-8. Session persists across browser refreshes
-9. Partial videos count toward limit (>50% watched)
-10. Admin dashboard shows current session status
+1. Watch history entries tracked in database (watched_at, duration_watched_seconds, manual_play, grace_play flags)
+2. Daily limit retrieved from settings (default: 30 minutes)
+3. Time tracking begins when child first completes a video
+4. Minutes watched increments based on duration_watched_seconds of each video (excluding manual_play=true and grace_play=true per TIER 1 safety rule)
+5. When minute limit reached, redirect to grace screen offering one bonus video
+6. Limit resets at midnight UTC (UTC timezone enforced per TIER 1 safety rule, not configurable)
+7. Parent can reset limit early via admin interface (deletes today's watch_history entries where manual_play=false and grace_play=false)
+8. Watch history persists across browser refreshes (daily limit state recalculated from database on each request)
+9. Actual duration watched in seconds counts toward limit (tracked via duration_watched_seconds field)
+10. Admin dashboard shows current daily limit status (minutes watched, minutes remaining, current state)
 
 ## Story 4.2: Progressive Warning System and Wind-Down Mode
 
@@ -29,16 +29,19 @@ I want gentle warnings before time is up,
 so that I'm not surprised when videos end.
 
 **Acceptance Criteria:**
-1. Warning appears after video N-2 (e.g., after video 3 of 5)
-2. Warning message: "2 videoer igjen!" displayed prominently
+1. Warning appears when 10 minutes remaining threshold is crossed (first warning)
+2. Warning message: "10 minutter igjen!" displayed prominently
 3. Warning uses friendly, encouraging language
-4. After video N-1, message: "1 video igjen!"
-5. Wind-down mode activates at video N-1 (visual changes: softer colors)
+4. Two additional warnings: "5 minutter igjen!" at 5 minutes remaining, "2 minutter igjen!" at 2 minutes remaining
+5. Wind-down mode activates when less than 10 minutes remaining (visual changes: softer colors, videos filtered to fit remaining time)
 6. Mascot appears during warnings with encouraging messages
-7. Warnings dismissible with "Ok, jeg forstår" button
-8. No warnings if limit is 1 video (goes straight to goodbye)
+7. Warnings auto-dismiss after 3 seconds
+8. If daily limit set below 10 minutes, only shows warnings for thresholds below the limit (e.g., 8 min limit shows only 5 min and 2 min warnings)
 9. Warnings logged for parent review
 10. Audio chime plays with warnings (if audio enabled in settings)
+11. Frontend polls /api/limit/status every 30 seconds to check remaining time and update UI state
+12. During wind-down mode (≤10 min remaining), video grid filtered to max_duration = minutes_remaining × 60 seconds
+13. If no videos fit remaining time during wind-down, show all videos (better than empty grid)
 
 ## Story 4.3: Grace Video and Mascot Integration
 
@@ -47,16 +50,20 @@ I want a friendly goodbye experience with one bonus "grace video",
 so that ending feels positive and rewarding.
 
 **Acceptance Criteria:**
-1. After final video (video N), "You're All Done!" screen appears
+1. When daily minute limit reached, "You're All Done!" (grace) screen appears
 2. Mascot character prominently displayed with goodbye message
 3. Two buttons: "See You Tomorrow!" and "One More Video?"
 4. "One More Video?" allowed once per day (grace video)
-5. Grace video counted separately (not in daily limit)
+5. Grace video logged with grace_play=true flag in watch_history (excluded from daily limit calculation per TIER 1 safety rule)
 6. After grace video, only goodbye screen shown (no second grace)
-7. Grace video tracked in database with flag
+7. Grace video entry includes: grace_play=true, manual_play=false, duration_watched_seconds
 8. Mascot animation or special visual when grace video granted
-9. Goodbye screen includes time remaining until reset (e.g., "Come back in 8 timer!")
+9. Goodbye screen includes time remaining until midnight UTC reset
 10. All text in Norwegian, child-friendly language
+11. Grace video selection grid shows 4-6 videos (fewer than normal 9-video grid)
+12. Grace videos filtered to maximum 5 minutes duration (hardcoded constraint)
+13. If no videos under 5 minutes available, show shortest available videos as fallback
+14. Mid-video limit handling: If currently playing video will complete within 5 minutes after limit reached, allow it to finish before showing grace screen (prevents abrupt interruption)
 
 ## Story 4.4: Engagement-Based Smart Selection
 
@@ -74,7 +81,7 @@ so that my child sees varied content they enjoy.
 7. Selection feels random to child despite weighting
 8. Algorithm maintains variety across multiple channels
 9. Edge case handling: all videos recently watched (select randomly)
-10. Engagement data tracked in database (views table with completion percentage)
+10. Engagement data tracked in watch_history table (completed boolean, duration_watched_seconds)
 
 ## Story 4.5: Audio Feedback System
 
