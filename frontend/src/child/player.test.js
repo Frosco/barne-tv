@@ -243,12 +243,7 @@ describe('Back button UI', () => {
     await createPlayer('dQw4w9WgXcQ', container);
 
     // Assert
-    // 1. Check if back button or controls exist in container
-    const hasButton =
-      container.querySelector('[data-back-button]') !== null ||
-      container.querySelector('button') !== null;
-
-    // For now, just verify container has content (button creation is implementation detail)
+    // Verify container has content (button creation is implementation detail)
     expect(container.children.length).toBeGreaterThan(0);
 
     // Cleanup

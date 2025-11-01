@@ -44,6 +44,17 @@
     </div>
   </section>
 
+  <!-- Daily Limit Status (Story 4.1, Task 5) -->
+  <section class="dashboard-section limit-status-section" aria-labelledby="limit-status-title">
+    <h2 id="limit-status-title" class="section-title">Daglig grense</h2>
+    <div class="limit-status" id="limit-status-container" aria-live="polite">
+      <div class="limit-status__loading">
+        <span class="loading-spinner" aria-label="Laster grensestatus"></span>
+        <p>Laster...</p>
+      </div>
+    </div>
+  </section>
+
   <section class="dashboard-actions">
     <a href="/" class="btn btn-secondary">Gå til barneskjermen</a>
     <a href="/admin/logout" class="btn btn-danger">Logg ut</a>
