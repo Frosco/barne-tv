@@ -13,7 +13,7 @@ so that screen time is controlled without manual intervention.
 **Acceptance Criteria:**
 1. Watch history entries tracked in database (watched_at, duration_watched_seconds, manual_play, grace_play flags)
 2. Daily limit retrieved from settings (default: 30 minutes)
-3. Time tracking begins when child first completes a video
+3. Time tracking begins when child first starts a video
 4. Minutes watched increments based on duration_watched_seconds of each video (excluding manual_play=true and grace_play=true per TIER 1 safety rule)
 5. When minute limit reached, redirect to grace screen offering one bonus video
 6. Limit resets at midnight UTC (UTC timezone enforced per TIER 1 safety rule, not configurable)
