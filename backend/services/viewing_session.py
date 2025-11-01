@@ -21,6 +21,7 @@ from backend.db.queries import (
     get_watch_history_for_date,
     get_setting,
     check_grace_consumed,
+    delete_todays_countable_history,
 )
 from backend.exceptions import NoVideosAvailableError
 
@@ -196,3 +197,42 @@ def get_videos_for_grid(
     random.shuffle(selected)
 
     return selected[:count], daily_limit
+
+
+def reset_daily_limit(conn=None) -> dict:
+    """
+    Reset today's daily limit by deleting countable watch history entries.
+
+    TIER 1 Rules Applied:
+    - Rule 2: Only delete entries where manual_play=0 AND grace_play=0 (preserves parent history)
+    - Rule 3: Always use UTC for date operations
+
+    TIER 2 Rule 7: Uses context manager via database query functions.
+
+    Args:
+        conn: Optional database connection (for testing). If None, creates new connection.
+
+    Returns:
+        Dict with updated daily limit state from get_daily_limit()
+        {
+            "date": "2025-01-03",
+            "minutesWatched": 0,
+            "minutesRemaining": 30,
+            "currentState": "normal",
+            "resetTime": "2025-01-04T00:00:00Z"
+        }
+
+    Example:
+        # Parent clicks "Reset Daily Limit" in admin interface
+        new_limit = reset_daily_limit()
+        print(f"Limit reset. Minutes remaining: {new_limit['minutesRemaining']}")
+    """
+    # TIER 1 Rule 3: Always use UTC for date operations
+    today = datetime.now(timezone.utc).date().isoformat()
+
+    # Delete countable watch history entries for today
+    # TIER 1 Rule 2: Only deletes manual_play=0 AND grace_play=0 (preserves parent/grace history)
+    delete_todays_countable_history(today, conn=conn)
+
+    # Get updated daily limit state
+    return get_daily_limit(conn=conn)

@@ -1419,3 +1419,159 @@ def reset_settings(request: Request):
         return JSONResponse(
             status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
         )
+
+
+# =============================================================================
+# DAILY LIMIT ROUTES (Story 4.1)
+# =============================================================================
+
+
+@router.get("/api/limit/status")
+@limiter.limit("100/minute")
+def get_limit_status(request: Request, response: Response):
+    """
+    Get current daily limit status for child interface.
+
+    No authentication required - child interface is public.
+
+    TIER 1 Rules Applied:
+    - Rule 2: Minutes calculation excludes manual_play and grace_play (via get_daily_limit)
+    - Rule 3: UTC timezone for all date operations (via get_daily_limit)
+
+    TIER 2 Rules Applied:
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error messages for users.
+
+    Returns:
+        Success (200): {
+            "date": "2025-01-03",
+            "minutesWatched": 15,
+            "minutesRemaining": 15,
+            "currentState": "normal|winddown|grace|locked",
+            "resetTime": "2025-01-04T00:00:00Z"
+        }
+        Error (503): {"error": "ServiceUnavailable", "message": "Kunne ikke hente daglig grense"}
+
+    Example:
+        GET /api/limit/status
+        Response: {
+            "date": "2025-01-03",
+            "minutesWatched": 15,
+            "minutesRemaining": 15,
+            "currentState": "normal",
+            "resetTime": "2025-01-04T00:00:00Z"
+        }
+    """
+    try:
+        # Get daily limit state from viewing session service
+        # TIER 1 Rule 2: Excludes manual_play and grace_play from calculations
+        # TIER 1 Rule 3: Uses UTC for all date operations
+        daily_limit = viewing_session.get_daily_limit()
+
+        # TIER 2 Rule 12: Consistent response structure (return dict directly)
+        return daily_limit
+
+    except KeyError as e:
+        # Handle missing daily_limit_minutes setting gracefully
+        # Task 1 requirement: Fall back to 30 minutes default
+        logger.warning(f"daily_limit_minutes setting not found, using default 30: {e}")
+
+        # Return default state with 30 minute limit
+        from datetime import datetime, timezone, timedelta
+
+        current_time = datetime.now(timezone.utc)
+        today = current_time.date().isoformat()
+        tomorrow = current_time.date() + timedelta(days=1)
+        reset_time = datetime.combine(tomorrow, datetime.min.time(), tzinfo=timezone.utc)
+
+        return {
+            "date": today,
+            "minutesWatched": 0,
+            "minutesRemaining": 30,
+            "currentState": "normal",
+            "resetTime": reset_time.isoformat().replace("+00:00", "Z"),
+        }
+
+    except Exception as e:
+        # Database connection failure or other error
+        # TIER 3 Rule 14: Norwegian error message
+        logger.error(f"Error fetching daily limit status: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "ServiceUnavailable",
+                "message": "Kunne ikke hente daglig grense",
+            },
+        )
+
+
+@router.post("/admin/limit/reset")
+@limiter.limit("100/minute")
+def reset_limit(request: Request, response: Response):
+    """
+    Reset today's daily limit (deletes countable watch history entries).
+
+    TIER 1 Rules Applied:
+    - Rule 2: Only deletes manual_play=0 AND grace_play=0 (preserves parent/grace entries)
+    - Rule 3: UTC timezone for all date operations (via reset_daily_limit)
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian success message.
+
+    Args:
+        request: FastAPI Request object for authentication
+        response: FastAPI Response object
+
+    Returns:
+        Success (200): {
+            "success": true,
+            "message": "Daglig grense tilbakestilt",
+            "newLimit": {
+                "date": "2025-01-03",
+                "minutesWatched": 0,
+                "minutesRemaining": 30,
+                "currentState": "normal",
+                "resetTime": "2025-01-04T00:00:00Z"
+            }
+        }
+        Error (401): Unauthorized (no valid session)
+        Error (500): {"error": "Internal error", "message": "Noe gikk galt"}
+
+    Example:
+        POST /admin/limit/reset
+        Response: {
+            "success": true,
+            "message": "Daglig grense tilbakestilt",
+            "newLimit": {...}
+        }
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Call service layer to reset daily limit
+        # TIER 1 Rule 2: Only deletes countable entries (preserves manual/grace)
+        # TIER 1 Rule 3: Uses UTC for date operations
+        new_limit = viewing_session.reset_daily_limit()
+
+        logger.info("Daily limit reset by admin")
+
+        # TIER 2 Rule 12: Consistent response structure
+        # TIER 3 Rule 14: Norwegian success message
+        return {
+            "success": True,
+            "message": "Daglig grense tilbakestilt",
+            "newLimit": new_limit,
+        }
+
+    except Exception as e:
+        # Generic error handler
+        # TIER 3 Rule 14: Norwegian error message
+        logger.error(f"Error resetting daily limit: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )

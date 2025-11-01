@@ -785,3 +785,51 @@ def update_video_availability(video_id: str, is_available: bool = False) -> int:
             (int(is_available), video_id),
         )
         return cursor.rowcount
+
+
+# =============================================================================
+# DAILY LIMIT MANAGEMENT (Story 4.1)
+# =============================================================================
+
+
+def delete_todays_countable_history(date: str, conn=None) -> int:
+    """
+    Delete today's countable watch history entries (for parent limit reset).
+
+    TIER 1 Rules Applied:
+    - Rule 2: Only delete entries where manual_play=0 AND grace_play=0
+    - Rule 6: Always use SQL placeholders (never string formatting)
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        date: ISO date string in YYYY-MM-DD format (UTC)
+        conn: Optional database connection (for testing). If None, creates new connection.
+
+    Returns:
+        Number of watch_history rows deleted
+
+    Example:
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date().isoformat()
+        count = delete_todays_countable_history(today)
+        print(f"Deleted {count} countable watch history entries")
+    """
+    # TIER 1 Rule 2: Only delete countable entries (manual_play=0 AND grace_play=0)
+    # TIER 1 Rule 6: Always use SQL placeholders
+    query = """
+        DELETE FROM watch_history
+        WHERE DATE(watched_at) = ?
+        AND manual_play = 0
+        AND grace_play = 0
+    """
+
+    if conn is not None:
+        # For testing: use provided connection
+        cursor = conn.execute(query, (date,))
+        return cursor.rowcount
+    else:
+        # TIER 2 Rule 7: Always use context manager for production
+        with get_connection() as conn:
+            cursor = conn.execute(query, (date,))
+            return cursor.rowcount
