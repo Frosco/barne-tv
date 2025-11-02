@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story 4.2 Manual Test Page</title>
+    <link rel="stylesheet" href="http://localhost:5173/src/main.css">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .test-section h2 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        button.secondary {
+            background: #95a5a6;
+        }
+        button.secondary:hover {
+            background: #7f8c8d;
+        }
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 3px solid #3498db;
+            padding-left: 10px;
+        }
+        .log-entry.success {
+            border-left-color: #27ae60;
+        }
+        .log-entry.error {
+            border-left-color: #e74c3c;
+        }
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .test-grid.winddown {
+            opacity: 0.9;
+            background: #f0f4f8;
+            padding: 15px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐻 Story 4.2 - Progressive Warnings & Wind-down Test Page</h1>
+
+    <div class="test-controls">
+        <div class="test-section">
+            <h2>1. Warning Display Tests</h2>
+            <div class="info-box">
+                <strong>Test:</strong> Click buttons to trigger different warning types. Each should show for 3 seconds with correct styling.
+            </div>
+            <button onclick="testWarning('10min')">Show 10-Minute Warning</button>
+            <button onclick="testWarning('5min')">Show 5-Minute Warning</button>
+            <button onclick="testWarning('2min')">Show 2-Minute Warning</button>
+        </div>
+
+        <div class="test-section">
+            <h2>2. Wind-down Mode Styling</h2>
+            <div class="info-box">
+                <strong>Test:</strong> Toggle wind-down mode to see visual styling changes.
+            </div>
+            <button onclick="toggleWinddown()">Toggle Wind-down Mode</button>
+            <button class="secondary" onclick="checkWinddownClasses()">Check Classes</button>
+            <div class="test-grid" id="testGrid">
+                <div style="background: #fff; padding: 20px; border-radius: 8px;">Video 1</div>
+                <div style="background: #fff; padding: 20px; border-radius: 8px;">Video 2</div>
+                <div style="background: #fff; padding: 20px; border-radius: 8px;">Video 3</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>3. Backend API Tests</h2>
+            <div class="info-box">
+                <strong>Test:</strong> Test the warning logging endpoint.
+            </div>
+            <button onclick="testLogWarningAPI('10min')">Log 10min Warning</button>
+            <button onclick="testLogWarningAPI('5min')">Log 5min Warning</button>
+            <button onclick="testLogWarningAPI('2min')">Log 2min Warning</button>
+            <button class="secondary" onclick="testInvalidWarning()">Test Invalid Type</button>
+        </div>
+
+        <div class="test-section">
+            <h2>4. Video Filtering Tests</h2>
+            <div class="info-box">
+                <strong>Test:</strong> Test max_duration parameter on /api/videos endpoint.
+            </div>
+            <button onclick="testVideoFilter(600)">Filter: 10 minutes</button>
+            <button onclick="testVideoFilter(300)">Filter: 5 minutes</button>
+            <button onclick="testVideoFilter(120)">Filter: 2 minutes</button>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Log</h2>
+            <button class="secondary" onclick="clearLog()">Clear Log</button>
+            <div class="log" id="testLog"></div>
+        </div>
+    </div>
+
+    <!-- Warning Overlay Container (will be injected) -->
+    <div id="warningContainer"></div>
+
+    <script type="module">
+        import { show as showWarning } from 'http://localhost:5173/src/child/warning-display.js';
+
+        // Make functions available globally
+        window.warningDisplay = { show: showWarning };
+
+        // Log helper
+        window.log = (message, type = 'info') => {
+            const logDiv = document.getElementById('testLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+
+        window.clearLog = () => {
+            document.getElementById('testLog').innerHTML = '';
+            log('Log cleared');
+        };
+
+        // Test warning display
+        window.testWarning = (type) => {
+            log(`Testing ${type} warning display...`);
+            try {
+                window.warningDisplay.show(type);
+                log(`✓ ${type} warning triggered successfully`, 'success');
+            } catch (error) {
+                log(`✗ Error showing ${type} warning: ${error.message}`, 'error');
+            }
+        };
+
+        // Test wind-down mode
+        let winddownActive = false;
+        window.toggleWinddown = () => {
+            const grid = document.getElementById('testGrid');
+            winddownActive = !winddownActive;
+
+            if (winddownActive) {
+                grid.classList.add('winddown');
+                log('✓ Wind-down mode ENABLED', 'success');
+            } else {
+                grid.classList.remove('winddown');
+                log('✓ Wind-down mode DISABLED', 'success');
+            }
+        };
+
+        window.checkWinddownClasses = () => {
+            const grid = document.getElementById('testGrid');
+            const hasClass = grid.classList.contains('winddown');
+            log(`Wind-down class present: ${hasClass}`);
+        };
+
+        // Test API endpoints
+        window.testLogWarningAPI = async (type) => {
+            log(`Testing POST /api/warnings/log with ${type}...`);
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/warnings/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        warningType: type,
+                        shownAt: new Date().toISOString()
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    log(`✓ API: ${type} warning logged successfully`, 'success');
+                } else {
+                    log(`✗ API Error: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`✗ API Request failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.testInvalidWarning = async () => {
+            log('Testing POST /api/warnings/log with invalid type...');
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/warnings/log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        warningType: 'invalid',
+                        shownAt: new Date().toISOString()
+                    })
+                });
+
+                const data = await response.json();
+                if (data.error) {
+                    log(`✓ API correctly rejected invalid type: ${data.message}`, 'success');
+                } else {
+                    log(`✗ API should have rejected invalid type`, 'error');
+                }
+            } catch (error) {
+                log(`✗ API Request failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.testVideoFilter = async (maxDuration) => {
+            log(`Testing GET /api/videos?max_duration=${maxDuration}...`);
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/videos?max_duration=${maxDuration}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    log(`✓ API returned ${data.videos ? data.videos.length : 0} videos`, 'success');
+                } else {
+                    log(`API response: ${data.message || 'No videos available'}`, 'info');
+                }
+            } catch (error) {
+                log(`✗ API Request failed: ${error.message}`, 'error');
+            }
+        };
+
+        // Initial log
+        log('Story 4.2 Test Page Loaded', 'success');
+        log('Backend: http://127.0.0.1:8000');
+        log('Frontend: http://localhost:5173');
+        log('Ready to test!');
+    </script>
+</body>
+</html>
