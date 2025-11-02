@@ -18,6 +18,7 @@ import { createPlayer } from './player.js';
 let currentVideos = [];
 let dailyLimit = null;
 let isLoading = false;
+let currentLimitState = null; // Story 4.2: Track limit state for wind-down mode
 
 /**
  * Initialize the video grid when page loads.
@@ -40,6 +41,36 @@ export function initGrid() {
 
   // Listen for player return event (Story 2.2)
   document.addEventListener('player:returnToGrid', handlePlayerReturn);
+
+  // Story 4.2 Task 8: Listen for limit state changes (wind-down mode)
+  window.addEventListener('limitStateChanged', handleLimitStateChange);
+}
+
+/**
+ * Handle limit state changes (Story 4.2 Task 8).
+ * Updates wind-down CSS classes and refetches videos with max_duration.
+ *
+ * @param {CustomEvent} event - limitStateChanged event from limit-tracker.js
+ */
+function handleLimitStateChange(event) {
+  const { limitData } = event.detail;
+  currentLimitState = limitData;
+
+  // Apply wind-down CSS class when entering wind-down mode
+  const gridContainer = document.querySelector('[data-grid]');
+  if (!gridContainer) return;
+
+  if (limitData.currentState === 'winddown') {
+    // Add wind-down class for visual changes (AC 5)
+    gridContainer.classList.add('video-grid--winddown');
+
+    // Story 4.2 Task 9: Refetch videos with max_duration filter
+    // Only videos that fit remaining time should be shown
+    loadVideos();
+  } else {
+    // Remove wind-down class when leaving wind-down mode
+    gridContainer.classList.remove('video-grid--winddown');
+  }
 }
 
 /**
@@ -67,6 +98,8 @@ async function handlePlayerReturn(event) {
 /**
  * Fetch videos from API and render the grid.
  *
+ * Story 4.2 Task 9: Added max_duration filtering for wind-down mode
+ *
  * TIER 2 Rule 9: Always handle fetch errors
  * TIER 3 Rule 14: Norwegian error messages
  */
@@ -77,8 +110,26 @@ export async function loadVideos() {
   showLoading();
 
   try {
+    // Story 4.2 Task 9: Build API URL with optional max_duration parameter
+    let apiUrl = '/api/videos?count=9';
+
+    // In wind-down mode, filter videos by remaining time (AC 12)
+    if (
+      currentLimitState &&
+      currentLimitState.currentState === 'winddown' &&
+      currentLimitState.minutesRemaining > 0
+    ) {
+      // Calculate max duration: minutes remaining * 60 seconds
+      const maxDurationSeconds = currentLimitState.minutesRemaining * 60;
+      apiUrl += `&max_duration=${maxDurationSeconds}`;
+
+      console.log(
+        `Wind-down mode: Filtering videos to max ${maxDurationSeconds}s (${currentLimitState.minutesRemaining} minutes)`
+      );
+    }
+
     // Fetch videos from backend API
-    const response = await fetch('/api/videos?count=9');
+    const response = await fetch(apiUrl);
 
     // TIER 2 Rule 9: Check response status
     if (!response.ok) {
@@ -362,4 +413,23 @@ function hideError() {
  */
 export function getDailyLimit() {
   return dailyLimit;
+}
+
+/**
+ * Get current limit state (for testing - Story 4.2).
+ *
+ * @returns {Object|null} Current limit state or null
+ */
+export function getCurrentLimitState() {
+  return currentLimitState;
+}
+
+/**
+ * Reset module state (for testing).
+ */
+export function resetState() {
+  currentVideos = [];
+  dailyLimit = null;
+  isLoading = false;
+  currentLimitState = null;
 }

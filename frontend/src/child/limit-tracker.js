@@ -1,5 +1,5 @@
 /**
- * Child Limit Tracker Module (Story 4.1, Task 7)
+ * Child Limit Tracker Module (Story 4.1, Task 7 | Story 4.2, Task 7)
  *
  * Handles:
  * - Polling /api/limit/status every 30 seconds
@@ -7,6 +7,7 @@
  * - Event emission for state changes
  * - Page Visibility API (pause when tab hidden)
  * - Error handling with backoff
+ * - Threshold detection for warnings (Story 4.2)
  */
 
 // In-memory state (no localStorage per TIER 3 Rule 15)
@@ -15,6 +16,12 @@ let pollInterval = null;
 let pollIntervalDuration = 30000; // 30 seconds default
 let consecutiveErrors = 0;
 let isVisible = true;
+
+// Story 4.2: Warning thresholds (in minutes)
+const WARNING_THRESHOLDS = [10, 5, 2];
+
+// Story 4.2: Track warnings that have been shown
+let shownWarnings = new Set();
 
 /**
  * Initialize limit tracker with polling.
@@ -95,11 +102,18 @@ async function fetchLimitStatus() {
 /**
  * Handle limit data and emit events for state changes.
  *
+ * Story 4.2: Added threshold detection for warnings.
+ *
  * @param {Object} limitData - Limit status data from API
  */
 function handleLimitData(limitData) {
   const previousState = currentState;
   const newState = limitData.currentState;
+
+  // Story 4.2: Check for threshold crossings BEFORE updating state
+  if (previousState) {
+    checkWarningThresholds(previousState, limitData);
+  }
 
   // Update in-memory state
   currentState = limitData;
@@ -115,6 +129,11 @@ function handleLimitData(limitData) {
     // Special event for grace limit reached
     if (newState === 'grace') {
       emitEvent('graceLimitReached', { limitData });
+    }
+
+    // Story 4.2: Reset shown warnings when date changes (midnight UTC reset)
+    if (previousState.date !== limitData.date) {
+      shownWarnings.clear();
     }
   }
 }
@@ -132,6 +151,59 @@ function handleFetchError() {
     );
     pollIntervalDuration = 60000;
     startPolling(); // Restart with increased interval
+  }
+}
+
+/**
+ * Check for warning threshold crossings (Story 4.2, Task 7).
+ *
+ * Detects when minutes remaining crosses a threshold (10→9, 5→4, 2→1).
+ * Implements AC 8: Only show warnings below daily limit.
+ *
+ * @param {Object} previousLimitData - Previous limit state
+ * @param {Object} currentLimitData - Current limit state
+ */
+function checkWarningThresholds(previousLimitData, currentLimitData) {
+  const prevMinutes = previousLimitData.minutesRemaining;
+  const currMinutes = currentLimitData.minutesRemaining;
+
+  // Get daily limit from API response
+  // Need to calculate from minutesWatched + minutesRemaining
+  const dailyLimit =
+    previousLimitData.minutesWatched + previousLimitData.minutesRemaining;
+
+  // AC 8: Filter thresholds to only those below daily limit
+  // Example: If daily limit is 8 minutes, only show 5 and 2 minute warnings
+  const activeThresholds = WARNING_THRESHOLDS.filter(
+    (threshold) => threshold < dailyLimit
+  );
+
+  // Check each active threshold
+  for (const threshold of activeThresholds) {
+    // Detect threshold crossing: was ABOVE threshold, now AT OR BELOW threshold
+    if (prevMinutes > threshold && currMinutes <= threshold) {
+      // Only emit if this threshold hasn't been shown yet today
+      const warningKey = `${threshold}min`;
+
+      if (!shownWarnings.has(warningKey)) {
+        // Mark as shown
+        shownWarnings.add(warningKey);
+
+        // Emit warningTriggered event
+        emitEvent('warningTriggered', {
+          warningType: warningKey,
+          minutesRemaining: currMinutes,
+          limitData: currentLimitData,
+        });
+
+        console.log(
+          `Warning threshold crossed: ${threshold} minutes (${prevMinutes} → ${currMinutes})`
+        );
+
+        // Only show one warning at a time (most urgent if multiple thresholds crossed)
+        break;
+      }
+    }
   }
 }
 
@@ -190,4 +262,5 @@ export function cleanup() {
   currentState = null;
   consecutiveErrors = 0;
   pollIntervalDuration = 30000;
+  shownWarnings.clear(); // Story 4.2: Reset shown warnings
 }

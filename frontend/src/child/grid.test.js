@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderGrid, loadVideos, initGrid } from './grid.js';
+import { renderGrid, loadVideos, initGrid, resetState } from './grid.js';
 
 // Mock the player module to prevent actual player creation in tests
 vi.mock('./player.js', () => ({
@@ -71,6 +71,9 @@ const mockDailyLimit = {
 beforeEach(() => {
   // Clear fetch mock
   fetch.mockClear();
+
+  // Reset grid module state (Story 4.2: prevent state leakage between tests)
+  resetState();
 
   // Setup DOM structure (mimics grid.html template)
   document.body.innerHTML = `
@@ -458,4 +461,191 @@ describe('Count Parameter (Backend Validation)', () => {
   // integration tests for backend/routes.py, not frontend unit tests.
   // Count validation happens in backend (routes.py line 636-643), not in grid.js.
   // See tests/integration/test_api_integration.py for count validation tests.
+});
+
+// =============================================================================
+// Story 4.2: Wind-Down Mode Integration Tests
+// =============================================================================
+
+describe('Story 4.2: Wind-Down Mode Integration', () => {
+  it('4.2-INT-005: applies wind-down CSS class when entering wind-down mode', () => {
+    // Arrange: Initialize grid
+    initGrid();
+    const gridContainer = document.querySelector('[data-grid]');
+
+    // Act: Emit limitStateChanged event with wind-down state
+    const winddownEvent = new CustomEvent('limitStateChanged', {
+      detail: {
+        previousState: 'normal',
+        newState: 'winddown',
+        limitData: {
+          date: '2025-01-03',
+          minutesWatched: 22,
+          minutesRemaining: 8,
+          currentState: 'winddown',
+          resetTime: '2025-01-04T00:00:00Z',
+        },
+      },
+    });
+
+    window.dispatchEvent(winddownEvent);
+
+    // Assert: Wind-down CSS class applied
+    expect(gridContainer.classList.contains('video-grid--winddown')).toBe(true);
+  });
+
+  it('4.2-INT-005: removes wind-down CSS class when exiting wind-down mode', () => {
+    // Arrange: Grid in wind-down mode
+    initGrid();
+    const gridContainer = document.querySelector('[data-grid]');
+    gridContainer.classList.add('video-grid--winddown');
+
+    // Act: Emit limitStateChanged event with normal state
+    const normalEvent = new CustomEvent('limitStateChanged', {
+      detail: {
+        previousState: 'winddown',
+        newState: 'normal',
+        limitData: {
+          date: '2025-01-03',
+          minutesWatched: 10,
+          minutesRemaining: 20,
+          currentState: 'normal',
+          resetTime: '2025-01-04T00:00:00Z',
+        },
+      },
+    });
+
+    window.dispatchEvent(normalEvent);
+
+    // Assert: Wind-down CSS class removed
+    expect(gridContainer.classList.contains('video-grid--winddown')).toBe(
+      false
+    );
+  });
+
+  it('4.2-INT-016: passes max_duration parameter when fetching videos in wind-down mode', async () => {
+    // Arrange: Mock successful fetches (2 calls: initGrid + winddown event)
+    fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ videos: mockVideos, dailyLimit: mockDailyLimit }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ videos: mockVideos, dailyLimit: mockDailyLimit }),
+      });
+
+    // Set grid to wind-down state with 5 minutes remaining
+    initGrid();
+
+    // Wait for initial loadVideos from initGrid
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Clear fetch mock to isolate the wind-down fetch call
+    fetch.mockClear();
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ videos: mockVideos, dailyLimit: mockDailyLimit }),
+    });
+
+    const winddownEvent = new CustomEvent('limitStateChanged', {
+      detail: {
+        previousState: 'normal',
+        newState: 'winddown',
+        limitData: {
+          date: '2025-01-03',
+          minutesWatched: 25,
+          minutesRemaining: 5,
+          currentState: 'winddown',
+          resetTime: '2025-01-04T00:00:00Z',
+        },
+      },
+    });
+
+    // Act: Emit limitStateChanged event (triggers loadVideos)
+    window.dispatchEvent(winddownEvent);
+
+    // Wait for async loadVideos to complete
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Assert: Fetch called with max_duration=300 (5 minutes * 60 seconds)
+    expect(fetch).toHaveBeenCalledWith('/api/videos?count=9&max_duration=300');
+  });
+
+  it('4.2-INT-016: does not pass max_duration parameter in normal mode', async () => {
+    // Arrange: Mock successful fetch
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        videos: mockVideos,
+        dailyLimit: mockDailyLimit,
+      }),
+    });
+
+    // Act: Load videos in normal mode (no wind-down state set)
+    await loadVideos();
+
+    // Assert: Fetch called without max_duration parameter
+    expect(fetch).toHaveBeenCalledWith('/api/videos?count=9');
+  });
+
+  it('4.2-INT-016: calculates max_duration correctly for different remaining times', async () => {
+    // Arrange: Mock initial fetch for initGrid
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ videos: mockVideos, dailyLimit: mockDailyLimit }),
+    });
+
+    initGrid();
+
+    // Wait for initial loadVideos from initGrid
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Clear fetch and set up for wind-down tests
+    fetch.mockClear();
+
+    // Act 1: Wind-down with 3 minutes remaining
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ videos: mockVideos, dailyLimit: mockDailyLimit }),
+    });
+
+    const winddown3min = new CustomEvent('limitStateChanged', {
+      detail: {
+        limitData: {
+          minutesWatched: 27,
+          minutesRemaining: 3,
+          currentState: 'winddown',
+        },
+      },
+    });
+    window.dispatchEvent(winddown3min);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Assert 1: max_duration = 180 (3 * 60)
+    expect(fetch).toHaveBeenCalledWith('/api/videos?count=9&max_duration=180');
+
+    fetch.mockClear();
+
+    // Act 2: Wind-down with 10 minutes remaining (edge case)
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ videos: mockVideos, dailyLimit: mockDailyLimit }),
+    });
+
+    const winddown10min = new CustomEvent('limitStateChanged', {
+      detail: {
+        limitData: {
+          minutesWatched: 20,
+          minutesRemaining: 10,
+          currentState: 'winddown',
+        },
+      },
+    });
+    window.dispatchEvent(winddown10min);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Assert 2: max_duration = 600 (10 * 60)
+    expect(fetch).toHaveBeenCalledWith('/api/videos?count=9&max_duration=600');
+  });
 });
