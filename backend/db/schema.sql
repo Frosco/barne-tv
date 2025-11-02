@@ -103,6 +103,21 @@ CREATE INDEX idx_watch_history_date_flags
     ON watch_history(DATE(watched_at), manual_play, grace_play);
 
 -- =============================================================================
+-- LIMIT WARNINGS (Story 4.2)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS limit_warnings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    warning_type TEXT NOT NULL CHECK(warning_type IN ('10min', '5min', '2min')),
+    shown_at TEXT NOT NULL,                    -- ISO 8601 UTC timestamp
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Index on DATE() function for daily queries
+CREATE INDEX idx_limit_warnings_date ON limit_warnings(DATE(shown_at));
+CREATE INDEX idx_limit_warnings_type ON limit_warnings(warning_type);
+
+-- =============================================================================
 -- BANNED VIDEOS
 -- =============================================================================
 

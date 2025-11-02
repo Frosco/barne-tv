@@ -413,7 +413,7 @@ def get_source_video_ids(content_source_id: int) -> set[str]:
 
 
 def get_available_videos(
-    exclude_banned: bool = True, max_duration_seconds: int | None = None
+    exclude_banned: bool = True, max_duration_seconds: int | None = None, conn=None
 ) -> list[dict]:
     """
     Fetch available videos with optional filtering.
@@ -427,6 +427,7 @@ def get_available_videos(
     Args:
         exclude_banned: If True, filter out banned videos (default True)
         max_duration_seconds: If provided, filter videos by maximum duration (for wind-down mode)
+        conn: Optional database connection (for testing). If None, creates new connection.
 
     Returns:
         List of video dicts with camelCase keys for frontend consistency
@@ -456,28 +457,35 @@ def get_available_videos(
         query += " AND duration_seconds <= ?"
         params.append(max_duration_seconds)
 
-    # TIER 2 Rule 7: Always use context manager
-    with get_connection() as conn:
-        # TIER 1 Rule 6: Use SQL placeholders
+    # TIER 1 Rule 6: Use SQL placeholders
+    if conn is not None:
+        # For testing: use provided connection
         if params:
             results = conn.execute(query, tuple(params)).fetchall()
         else:
             results = conn.execute(query).fetchall()
+    else:
+        # TIER 2 Rule 7: Always use context manager for production
+        with get_connection() as conn:
+            if params:
+                results = conn.execute(query, tuple(params)).fetchall()
+            else:
+                results = conn.execute(query).fetchall()
 
-        # Convert to list of dicts with camelCase keys for frontend
-        videos = []
-        for row in results:
-            videos.append(
-                {
-                    "videoId": row["video_id"],
-                    "title": row["title"],
-                    "youtubeChannelName": row["youtube_channel_name"],
-                    "thumbnailUrl": row["thumbnail_url"],
-                    "durationSeconds": row["duration_seconds"],
-                }
-            )
+    # Convert to list of dicts with camelCase keys for frontend
+    videos = []
+    for row in results:
+        videos.append(
+            {
+                "videoId": row["video_id"],
+                "title": row["title"],
+                "youtubeChannelName": row["youtube_channel_name"],
+                "thumbnailUrl": row["thumbnail_url"],
+                "durationSeconds": row["duration_seconds"],
+            }
+        )
 
-        return videos
+    return videos
 
 
 def get_watch_history_for_date(date: str, conn=None) -> list[dict]:
@@ -833,3 +841,106 @@ def delete_todays_countable_history(date: str, conn=None) -> int:
         with get_connection() as conn:
             cursor = conn.execute(query, (date,))
             return cursor.rowcount
+
+
+# =============================================================================
+# LIMIT WARNINGS (Story 4.2)
+# =============================================================================
+
+
+def log_warning(warning_type: str, shown_at: str, conn=None) -> None:
+    """
+    Log a limit warning when shown to child.
+
+    TIER 1 Rules Applied:
+    - Rule 3: Always use UTC for timestamps (shown_at must be UTC)
+    - Rule 6: Always use SQL placeholders (never string formatting)
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        warning_type: Type of warning ('10min', '5min', '2min')
+        shown_at: ISO 8601 UTC timestamp when warning was shown
+        conn: Optional database connection (for testing). If None, creates new connection.
+
+    Example:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        log_warning('10min', now)
+    """
+    # TIER 1 Rule 6: Always use SQL placeholders
+    if conn is not None:
+        # For testing: use provided connection
+        conn.execute(
+            """INSERT INTO limit_warnings (warning_type, shown_at)
+               VALUES (?, ?)""",
+            (warning_type, shown_at),
+        )
+        conn.commit()
+    else:
+        # TIER 2 Rule 7: Always use context manager for production
+        with get_connection() as conn:
+            conn.execute(
+                """INSERT INTO limit_warnings (warning_type, shown_at)
+                   VALUES (?, ?)""",
+                (warning_type, shown_at),
+            )
+
+
+def get_warnings_for_date(date: str, conn=None) -> list[dict]:
+    """
+    Get all limit warnings for a specific date.
+
+    TIER 1 Rules Applied:
+    - Rule 3: Use UTC dates for all date operations
+    - Rule 6: Always use SQL placeholders
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        date: ISO date string in YYYY-MM-DD format (UTC)
+        conn: Optional database connection (for testing). If None, creates new connection.
+
+    Returns:
+        List of warning dicts with camelCase keys for frontend consistency
+
+    Example:
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date().isoformat()
+        warnings = get_warnings_for_date(today)
+        for warning in warnings:
+            print(f"{warning['warningType']} shown at {warning['shownAt']}")
+    """
+    # TIER 1 Rule 6: Always use SQL placeholders
+    if conn is not None:
+        # For testing: use provided connection
+        results = conn.execute(
+            """SELECT warning_type, shown_at, created_at
+               FROM limit_warnings
+               WHERE DATE(shown_at) = ?
+               ORDER BY shown_at ASC""",
+            (date,),
+        ).fetchall()
+    else:
+        # TIER 2 Rule 7: Always use context manager for production
+        with get_connection() as conn:
+            results = conn.execute(
+                """SELECT warning_type, shown_at, created_at
+                   FROM limit_warnings
+                   WHERE DATE(shown_at) = ?
+                   ORDER BY shown_at ASC""",
+                (date,),
+            ).fetchall()
+
+    # Convert to list of dicts with camelCase keys
+    warnings = []
+    for row in results:
+        warnings.append(
+            {
+                "warningType": row["warning_type"],
+                "shownAt": row["shown_at"],
+                "createdAt": row["created_at"],
+            }
+        )
+
+    return warnings

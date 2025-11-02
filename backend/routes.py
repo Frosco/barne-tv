@@ -84,6 +84,13 @@ class UpdateSettingsRequest(BaseModel):
     audio_enabled: bool | None = None
 
 
+class LogWarningRequest(BaseModel):
+    """Request model for logging limit warning (Story 4.2)."""
+
+    warningType: str  # '10min', '5min', '2min'
+    shownAt: str  # ISO 8601 UTC timestamp
+
+
 # =============================================================================
 # ADMIN AUTHENTICATION ROUTES (Story 1.4)
 # =============================================================================
@@ -677,18 +684,23 @@ def child_grid_page(request: Request, response: Response):
 
 @router.get("/api/videos")
 @limiter.limit("100/minute")
-def get_videos(request: Request, response: Response, count: int = 9):
+def get_videos(
+    request: Request, response: Response, count: int = 9, max_duration: int | None = None
+):
     """
     Fetch videos for the child's video grid.
 
     Uses weighted random selection (60-80% novelty, 20-40% favorites).
     Returns videos and daily limit state.
 
+    **Story 4.2 Addition:** Now accepts optional max_duration parameter for wind-down mode.
+    When max_duration is provided, only returns videos shorter than specified duration.
+
     TIER 1 Rules Applied:
     - Rule 1: Videos filtered for banned/unavailable (via viewing_session service)
     - Rule 2: Time limits exclude manual_play/grace_play (via get_daily_limit)
     - Rule 3: UTC timezone for all date operations (via service layer)
-    - Rule 5: Validate input (count range 4-15)
+    - Rule 5: Validate input (count range 4-15, max_duration positive)
 
     TIER 2 Rules Applied:
     - Rule 12: Consistent API response structure
@@ -698,6 +710,7 @@ def get_videos(request: Request, response: Response, count: int = 9):
     Args:
         request: FastAPI Request object (for rate limiting)
         count: Number of videos to return (default 9, range 4-15)
+        max_duration: Optional maximum video duration in seconds (for wind-down mode)
 
     Returns:
         Success (200): {
@@ -724,8 +737,11 @@ def get_videos(request: Request, response: Response, count: int = 9):
     Example:
         GET /api/videos?count=9
         Response: {"videos": [...], "dailyLimit": {...}}
+
+        GET /api/videos?count=9&max_duration=300
+        Response: {"videos": [...filtered to 5 min or less...], "dailyLimit": {...}}
     """
-    # TIER 1 Rule 5: Validate input parameter
+    # TIER 1 Rule 5: Validate input parameters
     if not (4 <= count <= 15):
         return JSONResponse(
             status_code=400,
@@ -735,9 +751,19 @@ def get_videos(request: Request, response: Response, count: int = 9):
             },
         )
 
+    if max_duration is not None and max_duration <= 0:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid parameter",
+                "message": "Maksimal varighet må være positiv",
+            },
+        )
+
     try:
         # Call service layer to get videos and daily limit
-        videos, daily_limit = viewing_session.get_videos_for_grid(count)
+        # Pass max_duration to service layer for wind-down filtering
+        videos, daily_limit = viewing_session.get_videos_for_grid(count, max_duration)
 
         # TIER 2 Rule 12: Consistent response structure
         return {"videos": videos, "dailyLimit": daily_limit}
@@ -1572,6 +1598,172 @@ def reset_limit(request: Request, response: Response):
         # Generic error handler
         # TIER 3 Rule 14: Norwegian error message
         logger.error(f"Error resetting daily limit: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+# =============================================================================
+# LIMIT WARNINGS ROUTES (Story 4.2)
+# =============================================================================
+
+
+@router.post("/api/warnings/log")
+@limiter.limit("100/minute")
+def log_limit_warning(request: Request, response: Response, data: LogWarningRequest):
+    """
+    Log a limit warning when shown to child.
+
+    No authentication required - called from child interface.
+
+    TIER 1 Rules Applied:
+    - Rule 3: UTC timestamp validation and storage
+    - Rule 5: Validate input (warningType must be '10min', '5min', or '2min')
+    - Rule 6: SQL placeholders via log_warning()
+
+    TIER 2 Rules Applied:
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error messages for users.
+
+    Args:
+        request: FastAPI Request object (for rate limiting)
+        data: LogWarningRequest with warningType and shownAt fields
+
+    Returns:
+        Success (200): {"success": true}
+        Error (400): {"error": "Invalid parameter", "message": "..."}
+        Error (500): {"error": "Internal error", "message": "Noe gikk galt"}
+
+    Example:
+        POST /api/warnings/log
+        Body: {"warningType": "10min", "shownAt": "2025-01-03T14:30:00Z"}
+        Response: {"success": true}
+    """
+    # TIER 1 Rule 5: Validate warningType
+    valid_types = ["10min", "5min", "2min"]
+    if data.warningType not in valid_types:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid parameter",
+                "message": f"Advarseltype må være {', '.join(valid_types)}",
+            },
+        )
+
+    # TIER 1 Rule 3: Validate ISO 8601 timestamp format
+    try:
+        from datetime import datetime
+
+        datetime.fromisoformat(data.shownAt.replace("Z", "+00:00"))
+    except ValueError:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid parameter",
+                "message": "Ugyldig tidsstempel-format (må være ISO 8601)",
+            },
+        )
+
+    try:
+        # Import and call log_warning from queries module
+        from backend.db.queries import log_warning
+
+        # TIER 1 Rule 6: SQL placeholders used in log_warning()
+        log_warning(data.warningType, data.shownAt)
+
+        logger.info(f"Logged {data.warningType} warning at {data.shownAt}")
+
+        # TIER 2 Rule 12: Consistent response structure
+        return {"success": True}
+
+    except Exception as e:
+        # Generic error handler
+        # TIER 3 Rule 14: Norwegian error message
+        logger.error(f"Error logging warning: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.get("/admin/warnings")
+@limiter.limit("100/minute")
+def get_admin_warnings(request: Request, response: Response, date: str | None = None):
+    """
+    Get limit warnings for a specific date (admin interface).
+
+    TIER 1 Rules Applied:
+    - Rule 3: UTC date handling via get_warnings_for_date()
+    - Rule 5: Validate date format (YYYY-MM-DD)
+    - Rule 6: SQL placeholders via get_warnings_for_date()
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian error messages for users.
+
+    Args:
+        request: FastAPI Request object for authentication
+        date: Optional ISO date string in YYYY-MM-DD format (defaults to today)
+
+    Returns:
+        Success (200): {
+            "warnings": [
+                {
+                    "warningType": "10min",
+                    "shownAt": "2025-01-03T14:30:00Z",
+                    "createdAt": "2025-01-03T14:30:00.123Z"
+                }
+            ],
+            "date": "2025-01-03"
+        }
+        Error (400): {"error": "Invalid parameter", "message": "..."}
+        Error (500): {"error": "Internal error", "message": "Noe gikk galt"}
+
+    Example:
+        GET /admin/warnings?date=2025-01-03
+        Response: {"warnings": [...], "date": "2025-01-03"}
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    # Default to today if no date provided
+    if date is None:
+        from datetime import datetime, timezone
+
+        date = datetime.now(timezone.utc).date().isoformat()
+
+    # TIER 1 Rule 5: Validate date format (YYYY-MM-DD)
+    try:
+        from datetime import datetime
+
+        datetime.fromisoformat(date)
+    except ValueError:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid parameter",
+                "message": "Ugyldig datoformat (må være YYYY-MM-DD)",
+            },
+        )
+
+    try:
+        # Import and call get_warnings_for_date from queries module
+        from backend.db.queries import get_warnings_for_date
+
+        # TIER 1 Rule 6: SQL placeholders used in get_warnings_for_date()
+        warnings = get_warnings_for_date(date)
+
+        logger.info(f"Retrieved {len(warnings)} warnings for {date}")
+
+        # TIER 2 Rule 12: Consistent response structure
+        return {"warnings": warnings, "date": date}
+
+    except Exception as e:
+        # Generic error handler
+        # TIER 3 Rule 14: Norwegian error message
+        logger.error(f"Error fetching warnings for {date}: {e}", exc_info=True)
         return JSONResponse(
             status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
         )
