@@ -44,6 +44,7 @@ def get_daily_limit(conn=None) -> dict:
             "minutesWatched": 15,
             "minutesRemaining": 15,
             "currentState": "normal|winddown|grace|locked",
+            "graceAvailable": True,  # Only True when currentState == "grace"
             "resetTime": "2025-01-04T00:00:00Z"
         }
 
@@ -100,8 +101,50 @@ def get_daily_limit(conn=None) -> dict:
         "minutesWatched": minutes_watched,
         "minutesRemaining": minutes_remaining,
         "currentState": current_state,
+        "graceAvailable": current_state == "grace",
         "resetTime": reset_time.isoformat().replace("+00:00", "Z"),
     }
+
+
+def should_interrupt_video(minutes_remaining: int, video_duration_minutes: int) -> bool:
+    """
+    Determine if a video should be interrupted when daily limit is about to be reached.
+
+    Grace Period Logic (Story 4.3 AC 14):
+    - If video will finish within 5 minutes AFTER limit reached, let it play
+    - Otherwise, interrupt immediately and show grace screen
+
+    Args:
+        minutes_remaining: Minutes remaining in daily limit (can be negative)
+        video_duration_minutes: Total duration of video in minutes (rounded up)
+
+    Returns:
+        True if video should be interrupted, False if it should be allowed to finish
+
+    Examples:
+        # Video is 3 minutes, 8 minutes remaining → let it finish
+        should_interrupt_video(8, 3)  # False
+
+        # Video is 12 minutes, 8 minutes remaining → would extend 4 min past limit → let it finish
+        should_interrupt_video(8, 12)  # False (12 <= 8 + 5)
+
+        # Video is 15 minutes, 8 minutes remaining → would extend 7 min past limit → interrupt
+        should_interrupt_video(8, 15)  # True (15 > 8 + 5)
+
+        # Video is 6 minutes, 0 minutes remaining → within grace period → let it finish
+        should_interrupt_video(0, 6)  # False (6 <= 0 + 5)
+    """
+    # TIER 1 Rule 6: Validate inputs to prevent crashes with malformed data
+    if video_duration_minutes <= 0:
+        raise ValueError(f"video_duration_minutes must be positive, got {video_duration_minutes}")
+
+    # Defensive: Treat negative remaining time as zero (already past limit)
+    # This handles edge cases where calculation timing causes negative values
+    safe_minutes_remaining = max(0, minutes_remaining)
+
+    # Allow video to finish if it will complete within 5 minutes after limit
+    # This prevents abrupt interruptions for videos close to finishing
+    return video_duration_minutes > (safe_minutes_remaining + 5)
 
 
 def get_videos_for_grid(

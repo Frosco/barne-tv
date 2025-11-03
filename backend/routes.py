@@ -52,12 +52,13 @@ class AddSourceRequest(BaseModel):
 
 
 class WatchVideoRequest(BaseModel):
-    """Request model for logging video watch (Story 2.2, extended in Story 3.1)."""
+    """Request model for logging video watch (Story 2.2, extended in Story 3.1, Story 4.3)."""
 
     videoId: str
     completed: bool
     durationWatchedSeconds: int
     manualPlay: bool = False  # Story 3.1: defaults to False for normal child playback
+    gracePlay: bool = False  # Story 4.3: defaults to False for normal/manual playback
 
 
 class VideoUnavailableRequest(BaseModel):
@@ -682,6 +683,66 @@ def child_grid_page(request: Request, response: Response):
     )
 
 
+@router.get("/grace", response_class=HTMLResponse)
+@limiter.limit("100/minute")
+def grace_screen_page(request: Request, response: Response):
+    """
+    Serve grace screen page (Story 4.3).
+
+    Shown when daily limit reached. Offers one final grace video (≤5 minutes)
+    or option to finish for the day.
+
+    No authentication required - child interface is public.
+
+    Args:
+        request: FastAPI Request object for accessing app state
+
+    Returns:
+        HTML response with grace screen template
+    """
+    from backend.config import DEBUG
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "child/grace.html",
+        {
+            "request": request,
+            "interface": "child",
+            "dev_mode": DEBUG,
+        },
+    )
+
+
+@router.get("/goodbye", response_class=HTMLResponse)
+@limiter.limit("100/minute")
+def goodbye_screen_page(request: Request, response: Response):
+    """
+    Serve goodbye screen page (Story 4.3).
+
+    Shown after grace video consumed or when grace video declined.
+    Displays friendly goodbye message and countdown to midnight UTC reset.
+
+    No authentication required - child interface is public.
+
+    Args:
+        request: FastAPI Request object for accessing app state
+
+    Returns:
+        HTML response with goodbye screen template
+    """
+    from backend.config import DEBUG
+
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "child/goodbye.html",
+        {
+            "request": request,
+            "interface": "child",
+            "dev_mode": DEBUG,
+        },
+    )
+
+
 @router.get("/api/videos")
 @limiter.limit("100/minute")
 def get_videos(
@@ -765,6 +826,30 @@ def get_videos(
         # Pass max_duration to service layer for wind-down filtering
         videos, daily_limit = viewing_session.get_videos_for_grid(count, max_duration)
 
+        # Story 4.3: Grace mode handling - when limit reached, show grace videos
+        # Grace videos are filtered to 6 videos, max 5 minutes (300 seconds) each
+        if daily_limit.get("currentState") == "grace":
+            # Override count and max_duration for grace mode
+            grace_count = 6
+            grace_max_duration = 300  # 5 minutes hardcoded
+
+            try:
+                # Try to get grace videos (max 5 minutes each)
+                videos, daily_limit = viewing_session.get_videos_for_grid(
+                    grace_count, grace_max_duration
+                )
+            except NoVideosAvailableError:
+                # Fallback: No videos under 5 minutes, get shortest 6 videos instead
+                # This prevents empty grace screen (Story 4.3 AC 13)
+                logger.info(
+                    "No videos under 5 minutes for grace mode, falling back to shortest videos"
+                )
+                videos, daily_limit = viewing_session.get_videos_for_grid(
+                    grace_count, max_duration_seconds=None
+                )
+                # Sort by duration ascending, return shortest 6
+                videos = sorted(videos, key=lambda v: v["durationSeconds"])[:grace_count]
+
         # TIER 2 Rule 12: Consistent response structure
         return {"videos": videos, "dailyLimit": daily_limit}
 
@@ -802,6 +887,9 @@ def log_video_watch(request: Request, response: Response, data: WatchVideoReques
     **Story 3.1 Addition:** Now accepts optional manualPlay parameter.
     When manualPlay=True, video does NOT count toward daily limit.
 
+    **Story 4.3 Addition:** Now accepts optional gracePlay parameter.
+    When gracePlay=True, video is the daily grace video and does NOT count toward limit.
+
     TIER 1 Rules Applied:
     - Rule 2: manual_play and grace_play flags control limit counting
     - Rule 3: UTC timestamp recorded server-side (insert_watch_history uses datetime.now(timezone.utc))
@@ -816,7 +904,7 @@ def log_video_watch(request: Request, response: Response, data: WatchVideoReques
 
     Args:
         request: FastAPI Request object (for rate limiting)
-        data: WatchVideoRequest with videoId, completed, durationWatchedSeconds, manualPlay (optional)
+        data: WatchVideoRequest with videoId, completed, durationWatchedSeconds, manualPlay (optional), gracePlay (optional)
 
     Returns:
         Success (200): {
@@ -858,14 +946,14 @@ def log_video_watch(request: Request, response: Response, data: WatchVideoReques
 
     try:
         # Insert watch history record
-        # TIER 1 Rule 2: manual_play flag controls limit counting (Story 3.1)
+        # TIER 1 Rule 2: manual_play and grace_play flags control limit counting (Story 3.1, 4.3)
         # TIER 1 Rule 3: UTC timestamp recorded server-side
         insert_watch_history(
             video_id=data.videoId,
             completed=data.completed,
             duration_watched_seconds=data.durationWatchedSeconds,
             manual_play=data.manualPlay,  # Story 3.1: Pass from request (default False)
-            grace_play=False,  # Still hardcoded - grace logic is separate
+            grace_play=data.gracePlay,  # Story 4.3: Pass from request (default False)
         )
 
         # Get updated daily limit state
