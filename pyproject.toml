@@ -28,6 +28,7 @@ dev = [
     "black==25.9.0",
     "ruff==0.14.0",
     "mypy==1.15.0",
+    "freezegun==1.5.1",  # Time mocking for unit tests
 ]
 
 [build-system]
