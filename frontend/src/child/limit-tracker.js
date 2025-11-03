@@ -1,5 +1,5 @@
 /**
- * Child Limit Tracker Module (Story 4.1, Task 7 | Story 4.2, Task 7)
+ * Child Limit Tracker Module (Story 4.1, Task 7 | Story 4.2, Task 7 | Story 4.3, Task 13)
  *
  * Handles:
  * - Polling /api/limit/status every 30 seconds
@@ -8,6 +8,7 @@
  * - Page Visibility API (pause when tab hidden)
  * - Error handling with backoff
  * - Threshold detection for warnings (Story 4.2)
+ * - Grace/locked state navigation (Story 4.3)
  */
 
 // In-memory state (no localStorage per TIER 3 Rule 15)
@@ -126,9 +127,19 @@ function handleLimitData(limitData) {
       limitData: limitData,
     });
 
-    // Special event for grace limit reached
+    // Story 4.3: Navigate to grace screen when limit reached
     if (newState === 'grace') {
       emitEvent('graceLimitReached', { limitData });
+      // Navigate to grace screen
+      window.location.href = '/grace';
+      return;
+    }
+
+    // Story 4.3: Navigate to goodbye screen when locked
+    if (newState === 'locked') {
+      // Navigate to goodbye screen
+      window.location.href = '/goodbye';
+      return;
     }
 
     // Story 4.2: Reset shown warnings when date changes (midnight UTC reset)

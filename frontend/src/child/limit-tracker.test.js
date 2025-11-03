@@ -15,7 +15,6 @@ import { initLimitTracker, getCurrentState, cleanup } from './limit-tracker.js';
 describe('Limit Tracker', () => {
   let fetchMock;
   let originalFetch;
-  let eventListeners;
 
   beforeEach(() => {
     // Save original fetch
@@ -24,9 +23,6 @@ describe('Limit Tracker', () => {
     // Set up fetch mock
     fetchMock = vi.fn();
     global.fetch = fetchMock;
-
-    // Track event listeners (not mocking to allow real event system to work)
-    eventListeners = {};
 
     // Clean up any existing timers
     vi.clearAllTimers();
