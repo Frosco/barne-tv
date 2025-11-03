@@ -1,5 +1,5 @@
 /**
- * Warning Display Component (Story 4.2, Task 6)
+ * Warning Display Component (Story 4.2, Task 6 | Story 4.3, Task 10)
  *
  * Displays progressive time limit warnings to the child:
  * - 10 minutes remaining
@@ -10,7 +10,7 @@
  * - Auto-dismisses after 3 seconds
  * - Logs warnings to backend for parent review
  * - Plays audio chime (stub)
- * - Shows mascot emoji (stub for Story 4.3)
+ * - Shows mascot PNG images (Story 4.3)
  * - Norwegian messages
  */
 
@@ -21,19 +21,19 @@ const WARNING_CONFIG = {
   '10min': {
     title: '10 minutter igjen!',
     message: 'Du har god tid igjen! 😊',
-    mascot: '🐻', // Stub: Will be replaced with actual mascot in Story 4.3
+    mascotImage: '/images/mascot/mascot-happy.png', // Story 4.3: Actual mascot PNG
     className: 'warning--10min',
   },
   '5min': {
     title: '5 minutter igjen!',
-    message: 'Snart er tiden ute, velg en kort video! 🐻',
-    mascot: '🐻',
+    message: 'Snart er tiden ute, velg en kort video!',
+    mascotImage: '/images/mascot/mascot-curious.png', // Story 4.3: Curious mascot for urgency
     className: 'warning--5min',
   },
   '2min': {
     title: '2 minutter igjen!',
-    message: 'Bare 2 minutter igjen! 🕐',
-    mascot: '🐻',
+    message: 'Bare 2 minutter igjen!',
+    mascotImage: '/images/mascot/mascot-curious.png', // Story 4.3: Curious mascot for final warning
     className: 'warning--2min',
   },
 };
@@ -85,6 +85,8 @@ export function showWarning(warningType) {
 /**
  * Create warning overlay DOM element.
  *
+ * TIER 1 Rule 5: Use createElement and textContent to prevent XSS (Story 4.3)
+ *
  * @param {Object} config - Warning configuration
  * @returns {HTMLElement} Warning overlay element
  */
@@ -94,17 +96,41 @@ function createWarningOverlay(config) {
   overlay.setAttribute('role', 'alert');
   overlay.setAttribute('aria-live', 'assertive');
 
-  overlay.innerHTML = `
-    <div class="warning-overlay__content">
-      <div class="warning-overlay__mascot" aria-hidden="true">
-        ${config.mascot}
-      </div>
-      <div class="warning-overlay__text">
-        <h2 class="warning-overlay__title">${config.title}</h2>
-        <p class="warning-overlay__message">${config.message}</p>
-      </div>
-    </div>
-  `;
+  // Create content container
+  const content = document.createElement('div');
+  content.className = 'warning-overlay__content';
+
+  // Create mascot image container (Story 4.3)
+  const mascotContainer = document.createElement('div');
+  mascotContainer.className = 'warning-overlay__mascot';
+  mascotContainer.setAttribute('aria-hidden', 'true');
+
+  const mascotImg = document.createElement('img');
+  mascotImg.src = config.mascotImage;
+  mascotImg.alt = 'Maskot';
+  mascotImg.className = 'warning-overlay__mascot-img';
+
+  mascotContainer.appendChild(mascotImg);
+
+  // Create text container
+  const textContainer = document.createElement('div');
+  textContainer.className = 'warning-overlay__text';
+
+  const title = document.createElement('h2');
+  title.className = 'warning-overlay__title';
+  title.textContent = config.title;
+
+  const message = document.createElement('p');
+  message.className = 'warning-overlay__message';
+  message.textContent = config.message;
+
+  textContainer.appendChild(title);
+  textContainer.appendChild(message);
+
+  // Assemble structure
+  content.appendChild(mascotContainer);
+  content.appendChild(textContainer);
+  overlay.appendChild(content);
 
   // Allow manual dismissal by clicking
   overlay.addEventListener('click', () => {

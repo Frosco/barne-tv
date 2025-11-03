@@ -29,6 +29,7 @@ describe('Warning Display Component', () => {
 
   describe('showWarning', () => {
     it('should create warning overlay with correct content for 10min warning', () => {
+      // Story 4.3: Mascot PNG images instead of emoji
       showWarning('10min');
 
       const overlay = document.querySelector('.warning-overlay');
@@ -41,8 +42,11 @@ describe('Warning Display Component', () => {
       const message = overlay.querySelector('.warning-overlay__message');
       expect(message.textContent).toContain('Du har god tid igjen!');
 
-      const mascot = overlay.querySelector('.warning-overlay__mascot');
-      expect(mascot.textContent.trim()).toBe('🐻');
+      // Mascot is now an image, not emoji
+      const mascotContainer = overlay.querySelector('.warning-overlay__mascot');
+      const mascotImg = mascotContainer.querySelector('img');
+      expect(mascotImg).toBeTruthy();
+      expect(mascotImg.src).toContain('/images/mascot/mascot-happy.png');
     });
 
     it('should create warning overlay with correct content for 5min warning', () => {

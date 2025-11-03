@@ -365,6 +365,8 @@ async function markVideoUnavailable() {
 /**
  * Show error overlay with mascot and message.
  *
+ * TIER 1 Rule 5: Use createElement and textContent to prevent XSS (Story 4.3)
+ *
  * @param {string} message - Norwegian error message
  * @param {boolean} autoReturn - If true, auto-return to grid after 5 seconds
  */
@@ -372,15 +374,42 @@ function showErrorOverlay(message, autoReturn) {
   const overlay = playerContainer?.querySelector('[data-error-overlay]');
   if (!overlay) return;
 
-  // Build overlay content
-  overlay.innerHTML = `
-    <div class="error-overlay__content">
-      <img src="/images/mascot/owl_confused.png" alt="Owl mascot" class="error-overlay__mascot" />
-      <p class="error-overlay__message">${message}</p>
-      ${!autoReturn ? '<button class="error-overlay__button" data-error-return>Tilbake til videoer</button>' : ''}
-    </div>
-  `;
+  // Clear existing content
+  overlay.innerHTML = '';
 
+  // Create content container
+  const content = document.createElement('div');
+  content.className = 'error-overlay__content';
+
+  // Create mascot image (Story 4.3: Use mascot-shrug.png)
+  const mascotImg = document.createElement('img');
+  mascotImg.src = '/images/mascot/mascot-shrug.png';
+  mascotImg.alt = 'Maskot';
+  mascotImg.className = 'error-overlay__mascot';
+
+  // Create message
+  const messageEl = document.createElement('p');
+  messageEl.className = 'error-overlay__message';
+  messageEl.textContent = message;
+
+  // Assemble content
+  content.appendChild(mascotImg);
+  content.appendChild(messageEl);
+
+  // Add manual return button if not auto-returning
+  if (!autoReturn) {
+    const returnButton = document.createElement('button');
+    returnButton.className = 'error-overlay__button';
+    returnButton.textContent = 'Tilbake til videoer';
+    returnButton.setAttribute('data-error-return', '');
+    returnButton.addEventListener('click', async () => {
+      destroyPlayer();
+      await returnToGrid(true);
+    });
+    content.appendChild(returnButton);
+  }
+
+  overlay.appendChild(content);
   overlay.style.display = 'flex';
 
   // Auto-return after 5 seconds
@@ -389,15 +418,6 @@ function showErrorOverlay(message, autoReturn) {
       destroyPlayer();
       await returnToGrid(true);
     }, 5000);
-  } else {
-    // Manual return button
-    const returnButton = overlay.querySelector('[data-error-return]');
-    if (returnButton) {
-      returnButton.addEventListener('click', async () => {
-        destroyPlayer();
-        await returnToGrid(true);
-      });
-    }
   }
 }
 
