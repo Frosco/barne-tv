@@ -27,7 +27,6 @@ def test_warning_logging_sql_injection_prevention(test_db):
     # The CHECK constraint on warning_type prevents testing via warning_type
     # So we test SQL injection via the shown_at field instead
     malicious_timestamp = "2025-01-01T00:00:00Z'; DROP TABLE limit_warnings; --"
-    now = datetime.now(timezone.utc).isoformat()
 
     # This should safely insert the malicious string as data, not execute it
     log_warning("10min", malicious_timestamp, conn=test_db)

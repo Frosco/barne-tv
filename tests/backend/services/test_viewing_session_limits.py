@@ -392,7 +392,6 @@ def test_get_daily_limit_with_non_utc_timezone_mock(test_db, monkeypatch):
     # Create a PST timezone time: 2025-01-03 16:00:00 PST = 2025-01-04 00:00:00 UTC
     # This is midnight UTC (next day in PST)
     utc_midnight = datetime(2025, 1, 4, 0, 0, 0, tzinfo=timezone.utc)
-    pst_evening = datetime(2025, 1, 3, 16, 0, 0, tzinfo=timezone.utc)  # Still pass UTC
 
     # Insert watch history for "today" in UTC (2025-01-04)
     today_utc = "2025-01-04"
