@@ -1,0 +1,44 @@
+{% extends "base.html" %} {% block title %}Ha det! - Safe YouTube Viewer{%
+endblock %} {% block content %}
+<div class="goodbye-screen">
+  {# Mascot display - waving mascot with rotation animation #}
+  <div class="goodbye-screen__mascot">
+    <img
+      src="/images/mascot/mascot-wave.png"
+      alt="Maskot vinker farvel"
+      class="mascot-image mascot-image--wave"
+    />
+  </div>
+
+  {# Main heading with wave emoji #}
+  <h1 class="goodbye-screen__heading">Ha det! 👋</h1>
+
+  {# Friendly goodbye message #}
+  <p class="goodbye-screen__message">Vi ses i morgen!</p>
+
+  {# Countdown to midnight UTC reset #}
+  <div class="countdown" data-countdown>
+    <span class="countdown__icon">⏰</span>
+    <span class="countdown__time" data-countdown-time>Beregner...</span>
+  </div>
+</div>
+{% endblock %} {% block scripts %} {# Load countdown update script #} {% if
+dev_mode %}
+<script type="module">
+  // Countdown functionality will be implemented in grace-screen.js module
+  // For now, display static placeholder
+  const countdownEl = document.querySelector('[data-countdown-time]');
+  if (countdownEl) {
+    countdownEl.textContent = 'til i morgen';
+  }
+</script>
+{% else %}
+<script type="module">
+  // Countdown functionality will be implemented in grace-screen.js module
+  // For now, display static placeholder
+  const countdownEl = document.querySelector('[data-countdown-time]');
+  if (countdownEl) {
+    countdownEl.textContent = 'til i morgen';
+  }
+</script>
+{% endif %} {% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %} {% block title %}Vi er ferdige for i dag! - Safe
+YouTube Viewer{% endblock %} {% block content %}
+<div class="grace-screen">
+  {# Mascot display - happy mascot with pulse animation #}
+  <div class="grace-screen__mascot">
+    <img
+      src="/images/mascot/mascot-happy.png"
+      alt="Glad maskot"
+      class="mascot-image mascot-image--happy"
+    />
+  </div>
+
+  {# Main heading #}
+  <h1 class="grace-screen__heading">Vi er ferdige for i dag!</h1>
+
+  {# Friendly message #}
+  <p class="grace-screen__message">Du har sett på mye gøy i dag!</p>
+
+  {# Countdown to midnight UTC reset #}
+  <div class="countdown" data-countdown>
+    <span class="countdown__icon">⏰</span>
+    <span class="countdown__time" data-countdown-time>Beregner...</span>
+  </div>
+
+  {# Two-button choice: accept or decline grace video #}
+  <div class="grace-screen__buttons">
+    <button
+      class="grace-button grace-button--accept"
+      data-grace-accept
+      aria-label="Ja, se én video til"
+    >
+      Ja, én til!
+    </button>
+    <button
+      class="grace-button grace-button--decline"
+      data-grace-decline
+      aria-label="Nei, avslutt for i dag"
+    >
+      Nei, ha det!
+    </button>
+  </div>
+
+  {# Hidden grace video grid - shown when "Ja" button clicked #}
+  <div
+    class="grace-screen__video-grid"
+    data-grace-grid
+    hidden
+    role="list"
+    aria-label="Velg én video til"
+  >
+    {# Grace videos will be dynamically inserted here by grace-screen.js #}
+  </div>
+</div>
+{% endblock %} {% block scripts %} {# Load grace screen JavaScript module #} {%
+if dev_mode %}
+<script
+  type="module"
+  src="http://localhost:5173/src/child/grace-screen.js"
+></script>
+{% else %}
+<script type="module" src="/static/assets/child/grace-screen.js"></script>
+{% endif %} {% endblock %}
