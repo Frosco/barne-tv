@@ -73,6 +73,17 @@
         </span>
       </div>
 
+      <!-- Engagement data reset (Story 4.4) -->
+      <div class="form-group form-group-danger">
+        <h3 class="form-section-title">Engasjementsdata</h3>
+        <p class="help-text">
+          Videoene vises basert på hvor mye barnet liker dem (fullføring og gjenspilling). Du kan tilbakestille disse dataene for å starte på nytt.
+        </p>
+        <button type="button" id="reset-engagement-btn" class="btn btn-danger">
+          Tilbakestill engasjementsdata
+        </button>
+      </div>
+
       <!-- Form actions -->
       <div class="form-actions">
         <button type="submit" id="save-btn" class="btn btn-primary" disabled>
@@ -123,6 +134,41 @@
 .settings-form.loading {
   opacity: 0.6;
   pointer-events: none;
+}
+
+/* Engagement reset section (Story 4.4) */
+.form-group-danger {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-gray-light);
+}
+
+.form-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: white;
+  border: none;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--color-danger-dark);
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
 {% endblock %}

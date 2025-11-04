@@ -46,6 +46,12 @@ export function initSettings() {
     resetBtn.addEventListener('click', handleReset);
   }
 
+  // Attach engagement reset button handler (Story 4.4)
+  const resetEngagementBtn = document.getElementById('reset-engagement-btn');
+  if (resetEngagementBtn) {
+    resetEngagementBtn.addEventListener('click', handleResetEngagement);
+  }
+
   // Attach input change handlers for dirty tracking
   const inputs = form.querySelectorAll('input');
   inputs.forEach((input) => {
@@ -338,6 +344,44 @@ function showMessage(text, type) {
 function hideMessage() {
   const container = document.getElementById('message-container');
   container.style.display = 'none';
+}
+
+/**
+ * Handle engagement reset button click (Story 4.4).
+ * Shows confirmation dialog before resetting engagement data.
+ */
+async function handleResetEngagement() {
+  // Confirmation dialog
+  const confirmed = confirm('Er du sikker? Dette kan ikke angres.');
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    showLoading(true);
+    hideMessage();
+
+    // Call API
+    const response = await fetch('/admin/engagement/reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    showLoading(false);
+    showMessage(data.message || 'Engasjementsdata tilbakestilt', 'success');
+  } catch (error) {
+    showLoading(false);
+    showMessage('Kunne ikke tilbakestille engasjementsdata', 'error');
+    console.error('Error resetting engagement data:', error);
+  }
 }
 
 // Initialize on DOM ready (skip in test environment)
