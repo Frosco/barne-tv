@@ -2,7 +2,7 @@
 Backend test fixtures and utilities.
 
 Provides pytest fixtures for database testing and helper functions for
-setting up test data.
+setting up test data. Also re-exports service-level fixtures for wider availability.
 """
 
 import sqlite3
@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from tests.backend.services.conftest import test_db_with_patch  # noqa: F401
 
 
 @pytest.fixture

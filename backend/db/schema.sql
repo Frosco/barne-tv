@@ -102,6 +102,11 @@ CREATE INDEX idx_watch_history_channel ON watch_history(channel_name);
 CREATE INDEX idx_watch_history_date_flags
     ON watch_history(DATE(watched_at), manual_play, grace_play);
 
+-- Composite index for engagement score calculation (Story 4.4)
+-- Optimizes queries that group by video_id and filter by manual_play/grace_play
+CREATE INDEX IF NOT EXISTS idx_watch_history_engagement
+    ON watch_history(video_id, manual_play, grace_play, watched_at, completed);
+
 -- =============================================================================
 -- LIMIT WARNINGS (Story 4.2)
 -- =============================================================================

@@ -19,13 +19,23 @@ from backend.exceptions import NoVideosAvailableError
 # =============================================================================
 
 
-def create_mock_videos(count: int, start_id: int = 0) -> list[dict]:
-    """Helper to create mock video dictionaries."""
+def create_mock_videos(count: int, start_id: int = 0, vary_channels: bool = True) -> list[dict]:
+    """
+    Helper to create mock video dictionaries.
+
+    Args:
+        count: Number of videos to create
+        start_id: Starting ID for videos
+        vary_channels: If True, distribute videos across multiple channels (Story 4.4 channel variety constraint).
+                      If False, all videos from same channel (legacy behavior).
+    """
     return [
         {
             "videoId": f"video_{i}",
             "title": f"Test Video {i}",
-            "youtubeChannelName": "Test Channel",
+            "youtubeChannelName": (
+                f"Channel {i % 5}" if vary_channels else "Test Channel"
+            ),  # Distribute across 5 channels
             "thumbnailUrl": f"https://example.com/thumb_{i}.jpg",
             "durationSeconds": 300,
         }
@@ -53,119 +63,157 @@ def create_mock_watch_history(video_ids: list[str]) -> list[dict]:
 # =============================================================================
 
 
+@patch("backend.services.viewing_session.calculate_engagement_scores")
 @patch("backend.services.viewing_session.get_available_videos")
 @patch("backend.services.viewing_session.get_watch_history_for_date")
 @patch("backend.services.viewing_session.get_setting")
-def test_unit_005_calculate_novelty_vs_favorites_split_60_to_80_range(
-    mock_get_setting, mock_get_history, mock_get_videos
+def test_unit_005_engagement_based_selection_uses_weights(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_engagement
 ):
     """
-    2.1-UNIT-005: Weighted algorithm calculates 60-80% novelty, 20-40% favorites.
+    4.4-UNIT-005: Engagement-based algorithm uses weighted selection.
 
     Verifies:
-    - Novelty ratio is between 0.6 and 0.8
-    - Favorites ratio is between 0.2 and 0.4
-    - Split calculation is correct for requested count
+    - Videos with higher engagement scores are selected more frequently
+    - Weighted random selection is working (not deterministic)
+    - Selection feels random despite weighting (AC 7)
 
-    Note: Since random.uniform(0.6, 0.8) is used, we test the RESULT not the ratio itself.
-    We verify the split falls within the expected range over multiple runs.
+    Note: Replaces old Story 2.1 novelty/favorites test.
+    Story 4.4 uses engagement-based weighted selection instead.
     """
-    # Setup: 20 videos, 5 recently watched (favorites), 15 novel
-    mock_get_videos.return_value = create_mock_videos(20)
-    recent_videos = ["video_0", "video_1", "video_2", "video_3", "video_4"]
-    mock_get_history.return_value = create_mock_watch_history(recent_videos)
-    mock_get_setting.return_value = "30"  # daily_limit_minutes
-
-    # Run selection 50 times to verify ratio range
-    novelty_counts = []
-    favorites_counts = []
-
-    for _ in range(50):
-        videos, _ = get_videos_for_grid(count=10)
-
-        # Count novelty vs favorites in result
-        result_ids = {v["videoId"] for v in videos}
-        favorites_in_result = result_ids.intersection(recent_videos)
-        novelty_in_result = result_ids - favorites_in_result
-
-        novelty_counts.append(len(novelty_in_result))
-        favorites_counts.append(len(favorites_in_result))
-
-    # Verify ranges (60-80% novelty = 6-8 videos, 20-40% favorites = 2-4 videos for count=10)
-    avg_novelty = sum(novelty_counts) / len(novelty_counts)
-    avg_favorites = sum(favorites_counts) / len(favorites_counts)
-
-    # Average should be ~7 novelty (70%), ~3 favorites (30%)
-    assert 5.5 <= avg_novelty <= 8.5, f"Average novelty {avg_novelty} outside 60-80% range"
-    assert 1.5 <= avg_favorites <= 4.5, f"Average favorites {avg_favorites} outside 20-40% range"
-
-
-@patch("backend.services.viewing_session.get_available_videos")
-@patch("backend.services.viewing_session.get_watch_history_for_date")
-@patch("backend.services.viewing_session.get_setting")
-def test_unit_006_separate_videos_into_novelty_and_favorites_pools(
-    mock_get_setting, mock_get_history, mock_get_videos
-):
-    """
-    2.1-UNIT-006: Algorithm separates videos into novelty and favorites pools.
-
-    Verifies:
-    - Videos NOT in recent watch history are considered novelty
-    - Videos IN recent watch history are considered favorites
-    - Pool separation logic works correctly
-    """
-    # Setup: 10 videos total, 3 recently watched
+    # Setup: 10 videos with varying engagement scores
     mock_get_videos.return_value = create_mock_videos(10)
-    recent_videos = ["video_2", "video_5", "video_8"]  # Favorites
-    mock_get_history.return_value = create_mock_watch_history(recent_videos)
+    mock_get_history.return_value = []
     mock_get_setting.return_value = "30"
 
-    # Get videos
-    videos, _ = get_videos_for_grid(count=6)
-
-    # Extract IDs from result
-    result_ids = {v["videoId"] for v in videos}
-
-    # Should have SOME from each pool (can't predict exact split due to randomness)
-    # But we can verify:
-    # 1. Result is correct size
-    assert len(videos) == 6
-    # 2. All videos are either novelty or favorites (no unknown videos)
-    all_possible = {
-        "video_0",
-        "video_1",
-        "video_2",
-        "video_3",
-        "video_4",
-        "video_5",
-        "video_6",
-        "video_7",
-        "video_8",
-        "video_9",
+    # Mock engagement scores: video_0 has high engagement, video_9 has low engagement
+    mock_calc_engagement.return_value = {
+        "video_0": 0.9,  # High engagement
+        "video_1": 0.8,
+        "video_2": 0.7,
+        "video_3": 0.6,
+        "video_4": 0.5,
+        "video_5": 0.4,
+        "video_6": 0.3,
+        "video_7": 0.2,
+        "video_8": 0.1,
+        "video_9": 0.05,  # Low engagement (minimum floor)
     }
-    assert result_ids.issubset(all_possible)
+
+    # Run selection 100 times
+    selection_counts = {f"video_{i}": 0 for i in range(10)}
+
+    for _ in range(100):
+        videos, _ = get_videos_for_grid(count=5)
+        for video in videos:
+            selection_counts[video["videoId"]] += 1
+
+    # Verify: High-engagement videos selected more frequently than low-engagement
+    # video_0 (0.9 weight) should be selected more often than video_9 (0.05 weight)
+    assert (
+        selection_counts["video_0"] > selection_counts["video_9"]
+    ), f"High engagement video_0 ({selection_counts['video_0']}) should be selected more than low engagement video_9 ({selection_counts['video_9']})"
+
+    # Verify: Even low-engagement videos get selected sometimes (AC 4: never completely hidden)
+    assert (
+        selection_counts["video_9"] > 0
+    ), "Even lowest engagement video should be selected at least once in 100 runs"
 
 
+@patch("backend.services.viewing_session.calculate_engagement_scores")
 @patch("backend.services.viewing_session.get_available_videos")
 @patch("backend.services.viewing_session.get_watch_history_for_date")
 @patch("backend.services.viewing_session.get_setting")
-def test_unit_007_handle_case_where_novelty_pool_is_empty(
-    mock_get_setting, mock_get_history, mock_get_videos
+def test_unit_006_channel_variety_constraint_max_3_per_channel(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_engagement
 ):
     """
-    2.1-UNIT-007: Algorithm handles case where novelty pool is empty (all videos are favorites).
+    4.4-UNIT-006: Channel variety constraint limits max 3 videos per channel.
 
     Verifies:
-    - When all available videos have been watched recently
-    - Algorithm still returns requested count
-    - All videos come from favorites pool
+    - No more than 3 videos from any single channel in result (AC 8)
+    - Constraint enforced even when one channel has high engagement
+    - Multiple channels represented in grid
+
+    Note: Replaces old Story 2.1 novelty/favorites pool test.
+    Story 4.4 uses channel variety constraint instead.
     """
-    # Setup: 10 videos, ALL recently watched (no novelty)
-    all_videos = create_mock_videos(10)
-    mock_get_videos.return_value = all_videos
-    all_video_ids = [v["videoId"] for v in all_videos]
-    mock_get_history.return_value = create_mock_watch_history(all_video_ids)
+    # Setup: 15 videos, 10 from "Channel A", 5 from "Channel B"
+    videos_channel_a = [
+        {
+            "videoId": f"video_a{i}",
+            "title": f"Video A{i}",
+            "youtubeChannelName": "Channel A",
+            "thumbnailUrl": f"https://example.com/thumb_a{i}.jpg",
+            "durationSeconds": 300,
+        }
+        for i in range(10)
+    ]
+    videos_channel_b = [
+        {
+            "videoId": f"video_b{i}",
+            "title": f"Video B{i}",
+            "youtubeChannelName": "Channel B",
+            "thumbnailUrl": f"https://example.com/thumb_b{i}.jpg",
+            "durationSeconds": 300,
+        }
+        for i in range(5)
+    ]
+    mock_get_videos.return_value = videos_channel_a + videos_channel_b
+    mock_get_history.return_value = []
     mock_get_setting.return_value = "30"
+
+    # All videos have equal engagement
+    mock_calc_engagement.return_value = {f"video_a{i}": 0.7 for i in range(10)} | {
+        f"video_b{i}": 0.7 for i in range(5)
+    }
+
+    # Get 9 videos (typical grid size)
+    videos, _ = get_videos_for_grid(count=9)
+
+    # Count videos per channel
+    channel_counts = {}
+    for video in videos:
+        channel = video["youtubeChannelName"]
+        channel_counts[channel] = channel_counts.get(channel, 0) + 1
+
+    # Verify: No channel has more than 3 videos
+    for channel, count in channel_counts.items():
+        assert count <= 3, f"Channel {channel} has {count} videos (max 3 allowed)"
+
+    # Verify: Both channels represented (variety)
+    assert "Channel A" in channel_counts, "Channel A should be represented"
+    assert "Channel B" in channel_counts, "Channel B should be represented"
+
+
+@patch("backend.services.viewing_session.calculate_engagement_scores")
+@patch("backend.services.viewing_session.get_available_videos")
+@patch("backend.services.viewing_session.get_watch_history_for_date")
+@patch("backend.services.viewing_session.get_setting")
+def test_unit_007_handle_all_videos_watched_recently_fallback(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_engagement
+):
+    """
+    4.4-UNIT-007: Algorithm falls back to random when all videos watched recently (AC 9).
+
+    Verifies:
+    - When all videos have very low engagement scores (< 0.15)
+    - Algorithm falls back to random selection
+    - Still returns requested count (no empty grid)
+
+    Note: Replaces old Story 2.1 novelty pool empty test.
+    Story 4.4 handles this as edge case with random fallback.
+    """
+    # Setup: 10 videos, all with very low engagement (all recently watched)
+    mock_get_videos.return_value = create_mock_videos(10)
+    mock_get_history.return_value = []
+    mock_get_setting.return_value = "30"
+
+    # All videos have very low engagement scores (< 0.15) due to recency penalty
+    # This triggers the fallback to random selection
+    mock_calc_engagement.return_value = {
+        f"video_{i}": 0.08 for i in range(10)  # All below 0.15 threshold
+    }
 
     # Request 6 videos
     videos, _ = get_videos_for_grid(count=6)
@@ -173,29 +221,40 @@ def test_unit_007_handle_case_where_novelty_pool_is_empty(
     # Verify:
     # 1. Returns requested count
     assert len(videos) == 6
-    # 2. All videos are from favorites pool (recently watched)
+    # 2. All returned videos are from available pool
     result_ids = {v["videoId"] for v in videos}
-    assert result_ids.issubset(set(all_video_ids))
+    all_video_ids = {f"video_{i}" for i in range(10)}
+    assert result_ids.issubset(all_video_ids)
 
 
+@patch("backend.services.viewing_session.calculate_engagement_scores")
 @patch("backend.services.viewing_session.get_available_videos")
 @patch("backend.services.viewing_session.get_watch_history_for_date")
 @patch("backend.services.viewing_session.get_setting")
-def test_unit_008_handle_case_where_favorites_pool_is_empty(
-    mock_get_setting, mock_get_history, mock_get_videos
+def test_unit_008_handle_no_watch_history_baseline_weights(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_engagement
 ):
     """
-    2.1-UNIT-008: Algorithm handles case where favorites pool is empty (no recent watches).
+    4.4-UNIT-008: Algorithm handles no watch history with baseline weights.
 
     Verifies:
-    - When no videos have been watched recently (all novelty)
-    - Algorithm still returns requested count
-    - All videos come from novelty pool
+    - When no videos have been watched (brand new deployment)
+    - All videos get baseline weight 0.5
+    - Selection becomes effectively random (equal weights)
+    - Still returns requested count
+
+    Note: Replaces old Story 2.1 favorites pool empty test.
+    Story 4.4 handles this with baseline weights for new videos.
     """
-    # Setup: 10 videos, NONE recently watched (all novelty)
+    # Setup: 10 videos, no watch history (all new)
     mock_get_videos.return_value = create_mock_videos(10)
-    mock_get_history.return_value = []  # No recent watch history
+    mock_get_history.return_value = []  # No watch history
     mock_get_setting.return_value = "30"
+
+    # All videos have baseline weight 0.5 (no history)
+    mock_calc_engagement.return_value = {
+        f"video_{i}": 0.5 for i in range(10)  # Baseline weight for new videos
+    }
 
     # Request 6 videos
     videos, _ = get_videos_for_grid(count=6)
@@ -209,26 +268,30 @@ def test_unit_008_handle_case_where_favorites_pool_is_empty(
     assert result_ids.issubset(all_video_ids)
 
 
+@patch("backend.services.viewing_session.calculate_engagement_scores")
 @patch("backend.services.viewing_session.get_available_videos")
 @patch("backend.services.viewing_session.get_watch_history_for_date")
 @patch("backend.services.viewing_session.get_setting")
-def test_unit_009_fill_remaining_slots_when_pools_exhausted(
-    mock_get_setting, mock_get_history, mock_get_videos
+def test_unit_009_returns_all_videos_when_fewer_than_requested(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_engagement
 ):
     """
-    2.1-UNIT-009: Algorithm fills remaining slots when pools are smaller than requested count.
+    4.4-UNIT-009: Algorithm returns all videos when fewer available than requested count.
 
     Verifies:
-    - When novelty pool has only 2 videos and favorites pool has only 1 video
-    - But we request 6 videos
-    - Algorithm returns 3 videos (all available)
-    - Fallback logic works correctly
+    - When only 5 videos available but we request 10
+    - Algorithm returns all 5 available videos (can't return more than exist)
+    - No errors or empty results
+
+    Note: Updated for Story 4.4 engagement algorithm.
     """
-    # Setup: Only 5 available videos, 2 are favorites
+    # Setup: Only 5 available videos
     mock_get_videos.return_value = create_mock_videos(5)
-    recent_videos = ["video_1", "video_3"]  # Only 2 favorites
-    mock_get_history.return_value = create_mock_watch_history(recent_videos)
+    mock_get_history.return_value = []
     mock_get_setting.return_value = "30"
+
+    # Mock engagement scores (not used since len(available) <= count)
+    mock_calc_engagement.return_value = {f"video_{i}": 0.5 for i in range(5)}
 
     # Request 10 videos (more than available)
     videos, _ = get_videos_for_grid(count=10)
@@ -247,25 +310,33 @@ def test_unit_009_fill_remaining_slots_when_pools_exhausted(
 # =============================================================================
 
 
+@patch("backend.services.viewing_session.calculate_engagement_scores")
 @patch("backend.services.viewing_session.get_available_videos")
 @patch("backend.services.viewing_session.get_watch_history_for_date")
 @patch("backend.services.viewing_session.get_setting")
 def test_unit_011_get_videos_for_grid_returns_new_selection_each_call(
-    mock_get_setting, mock_get_history, mock_get_videos
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_engagement
 ):
     """
-    2.1-UNIT-011: get_videos_for_grid() returns new random selection on each call.
+    4.4-UNIT-011: get_videos_for_grid() returns new selection on each call (AC 7: feels random).
 
     Verifies:
     - Calling function multiple times produces different results
     - Grid regenerates with new videos (not cached)
-    - Randomness is working
+    - Weighted randomness is working
+    - Selection feels random despite engagement weighting
+
+    Note: Updated for Story 4.4 engagement algorithm.
     """
-    # Setup: 20 videos available, 5 recently watched
+    # Setup: 20 videos available with varying engagement
     mock_get_videos.return_value = create_mock_videos(20)
-    recent_videos = ["video_0", "video_1", "video_2"]
-    mock_get_history.return_value = create_mock_watch_history(recent_videos)
+    mock_get_history.return_value = []
     mock_get_setting.return_value = "30"
+
+    # Mock engagement scores - varying weights to test weighted randomness
+    mock_calc_engagement.return_value = {
+        f"video_{i}": 0.3 + (i * 0.03) for i in range(20)  # Weights from 0.3 to 0.87
+    }
 
     # Call function 10 times
     selections = []
@@ -284,32 +355,32 @@ def test_unit_011_get_videos_for_grid_returns_new_selection_each_call(
 # =============================================================================
 
 
+@patch("backend.services.viewing_session.calculate_engagement_scores")
 @patch("backend.services.viewing_session.get_available_videos")
 @patch("backend.services.viewing_session.get_watch_history_for_date")
 @patch("backend.services.viewing_session.get_setting")
-def test_unit_012_get_setting_grid_size_returns_configured_value(
-    mock_get_setting, mock_get_history, mock_get_videos
+def test_unit_012_respects_requested_count_parameter(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_engagement
 ):
     """
-    2.1-UNIT-012: get_setting('grid_size') returns configured value.
+    4.4-UNIT-012: get_videos_for_grid() respects requested count parameter.
 
     Verifies:
-    - Settings retrieval works correctly
     - Grid size can be configured by parent
-    - Value is used in video selection
+    - Function returns requested number of videos
+    - Count parameter works correctly with engagement algorithm
 
-    Note: This tests the INTEGRATION of settings, not get_setting() itself.
-    get_setting() is tested in test_queries.py.
+    Note: Updated for Story 4.4 engagement algorithm.
     """
     # Setup: 20 videos available
     mock_get_videos.return_value = create_mock_videos(20)
     mock_get_history.return_value = []
-    mock_get_setting.return_value = (
-        "30"  # daily_limit_minutes (grid_size would be tested in routes)
-    )
+    mock_get_setting.return_value = "30"  # daily_limit_minutes
 
-    # In Story 2.1, grid_size is passed as the `count` parameter to get_videos_for_grid()
-    # This test verifies the function respects the requested count
+    # Mock engagement scores
+    mock_calc_engagement.return_value = {f"video_{i}": 0.5 for i in range(20)}
+
+    # Verify function respects the requested count
     videos_9, _ = get_videos_for_grid(count=9)
     assert len(videos_9) == 9
 
@@ -317,23 +388,29 @@ def test_unit_012_get_setting_grid_size_returns_configured_value(
     assert len(videos_12) == 12
 
 
+@patch("backend.services.viewing_session.calculate_engagement_scores")
 @patch("backend.services.viewing_session.get_available_videos")
 @patch("backend.services.viewing_session.get_watch_history_for_date")
 @patch("backend.services.viewing_session.get_setting")
-def test_unit_013_default_to_9_when_grid_size_not_provided(
-    mock_get_setting, mock_get_history, mock_get_videos
+def test_unit_013_works_with_default_count_9(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_engagement
 ):
     """
-    2.1-UNIT-013: Grid defaults to 9 videos when grid_size setting not provided.
+    4.4-UNIT-013: Function works correctly with default count of 9.
 
     Note: In the actual implementation, the routes layer handles default values.
     get_videos_for_grid() always receives a `count` parameter.
     This test verifies the function works correctly with default count=9.
+
+    Note: Updated for Story 4.4 engagement algorithm.
     """
     # Setup: 20 videos available
     mock_get_videos.return_value = create_mock_videos(20)
     mock_get_history.return_value = []
     mock_get_setting.return_value = "30"
+
+    # Mock engagement scores
+    mock_calc_engagement.return_value = {f"video_{i}": 0.5 for i in range(20)}
 
     # Call with default count (9 is default in routes.py)
     videos, _ = get_videos_for_grid(count=9)
@@ -506,3 +583,247 @@ def test_wind_down_mode_filters_by_max_duration(
 
     # Verify get_available_videos was called with max_duration parameter
     mock_get_videos.assert_called_with(exclude_banned=True, max_duration_seconds=300)
+
+
+# =============================================================================
+# Edge Case Tests (Story 4.4 Phase 3)
+# =============================================================================
+
+
+@patch("backend.services.viewing_session.calculate_engagement_scores")
+@patch("backend.services.viewing_session.get_available_videos")
+@patch("backend.services.viewing_session.get_watch_history_for_date")
+@patch("backend.services.viewing_session.get_setting")
+def test_unit_014_channel_constraint_sets_weight_zero(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_scores
+):
+    """
+    Test 4.4-UNIT-014: Track channel counts during selection, set weight=0 when channel has 3 videos.
+
+    This test verifies the channel variety constraint (AC 8):
+    - Max 3 videos per channel in result set
+    - Weight set to 0 when channel already has 3 videos selected
+
+    Scenario:
+    - 10 videos from same channel (all high engagement)
+    - Request 9 videos
+
+    Expected:
+    - Only 3 videos from that channel selected
+    - Channel constraint enforced despite high engagement
+    """
+    # Setup: 10 videos from same channel
+    mock_videos = [
+        {
+            "videoId": f"video_{i}",
+            "title": f"Video {i}",
+            "youtubeChannelName": "Single Channel",
+            "durationSeconds": 300,
+        }
+        for i in range(1, 11)
+    ]
+    mock_get_videos.return_value = mock_videos
+    mock_get_history.return_value = []
+    mock_get_setting.return_value = "30"
+
+    # All videos have high engagement (should favor selection, but channel constraint wins)
+    mock_calc_scores.return_value = {f"video_{i}": 0.9 for i in range(1, 11)}
+
+    # Call get_videos_for_grid
+    videos, _ = get_videos_for_grid(count=9)
+
+    # Verify only 3 videos selected (channel constraint enforced)
+    assert len(videos) == 3, f"Expected 3 videos (channel constraint), got {len(videos)}"
+
+    # Verify all from same channel
+    assert all(
+        v["youtubeChannelName"] == "Single Channel" for v in videos
+    ), "All videos should be from Single Channel"
+
+
+@patch("backend.services.viewing_session.calculate_engagement_scores")
+@patch("backend.services.viewing_session.get_available_videos")
+@patch("backend.services.viewing_session.get_watch_history_for_date")
+@patch("backend.services.viewing_session.get_setting")
+def test_unit_015_single_channel_all_eligible(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_scores
+):
+    """
+    Test 4.4-UNIT-015: Edge case: Single channel with 20 videos → max 3 selected.
+
+    This test verifies that the channel constraint applies even when there's only
+    one channel available (prevents monotony in single-channel setup).
+
+    Scenario:
+    - 20 videos from single channel
+    - Request 9 videos
+
+    Expected:
+    - Only 3 videos selected (channel constraint enforced even for single channel)
+    """
+    # Setup: 20 videos from single channel
+    mock_videos = [
+        {
+            "videoId": f"video_{i}",
+            "title": f"Video {i}",
+            "youtubeChannelName": "Only Channel",
+            "durationSeconds": 300,
+        }
+        for i in range(1, 21)
+    ]
+    mock_get_videos.return_value = mock_videos
+    mock_get_history.return_value = []
+    mock_get_setting.return_value = "30"
+
+    # Varying engagement scores
+    mock_calc_scores.return_value = {f"video_{i}": 0.5 + (i * 0.02) for i in range(1, 21)}
+
+    # Call get_videos_for_grid
+    videos, _ = get_videos_for_grid(count=9)
+
+    # Verify max 3 videos selected (channel constraint)
+    assert len(videos) == 3, f"Expected 3 videos max from single channel, got {len(videos)}"
+
+
+@patch("backend.services.viewing_session.calculate_engagement_scores")
+@patch("backend.services.viewing_session.get_available_videos")
+@patch("backend.services.viewing_session.get_watch_history_for_date")
+@patch("backend.services.viewing_session.get_setting")
+def test_unit_016_low_weights_trigger_random_fallback(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_scores
+):
+    """
+    Test 4.4-UNIT-016: Detect all weights <0.15 threshold → trigger random fallback.
+
+    This test verifies AC 9 edge case handling:
+    - When all videos recently watched (all engagement scores < 0.15)
+    - Algorithm falls back to random selection
+    - Ensures child always gets videos (prevents empty grid)
+
+    Scenario:
+    - All videos have very low engagement scores (<0.15)
+    - This happens when all videos watched in last 24h (recency penalty)
+
+    Expected:
+    - Random fallback triggered (not weighted selection)
+    - All videos returned successfully
+    """
+    # Setup: 15 videos
+    mock_videos = create_mock_videos(15)
+    mock_get_videos.return_value = mock_videos
+    mock_get_history.return_value = []
+    mock_get_setting.return_value = "30"
+
+    # ALL engagement scores < 0.15 (triggers fallback)
+    mock_calc_scores.return_value = {f"video_{i}": 0.10 for i in range(1, 16)}
+
+    # Call get_videos_for_grid
+    videos, _ = get_videos_for_grid(count=9)
+
+    # Verify 9 videos returned (fallback successful)
+    assert len(videos) == 9, f"Expected 9 videos from random fallback, got {len(videos)}"
+
+    # Verify engagement scoring was called (before fallback detected)
+    mock_calc_scores.assert_called_once()
+
+
+@patch("backend.services.viewing_session.calculate_engagement_scores")
+@patch("backend.services.viewing_session.get_available_videos")
+@patch("backend.services.viewing_session.get_watch_history_for_date")
+@patch("backend.services.viewing_session.get_setting")
+def test_unit_017_small_channel_no_constraint(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_scores
+):
+    """
+    Test 4.4-UNIT-017: Edge case: Channel has <3 videos → no constraint applied.
+
+    This test verifies that the channel constraint doesn't prevent selection
+    when a channel has fewer than 3 videos (constraint applies naturally).
+
+    Scenario:
+    - Channel A: 2 videos (high engagement)
+    - Channel B: 2 videos (high engagement)
+    - Channel C: 2 videos (high engagement)
+    - Request 6 videos
+
+    Expected:
+    - All 6 videos selected (2 per channel)
+    - Constraint doesn't block selection when channel has <3 videos
+    """
+    # Setup: 3 channels with 2 videos each
+    mock_videos = []
+    for channel_idx in ["A", "B", "C"]:
+        for video_idx in [1, 2]:
+            mock_videos.append(
+                {
+                    "videoId": f"video_{channel_idx}{video_idx}",
+                    "title": f"Channel {channel_idx} Video {video_idx}",
+                    "youtubeChannelName": f"Channel {channel_idx}",
+                    "durationSeconds": 300,
+                }
+            )
+
+    mock_get_videos.return_value = mock_videos
+    mock_get_history.return_value = []
+    mock_get_setting.return_value = "30"
+
+    # All videos have high engagement
+    mock_calc_scores.return_value = {
+        f"video_{ch}{v}": 0.8 for ch in ["A", "B", "C"] for v in [1, 2]
+    }
+
+    # Call get_videos_for_grid
+    videos, _ = get_videos_for_grid(count=6)
+
+    # Verify all 6 videos selected (no constraint blocking)
+    assert len(videos) == 6, f"Expected all 6 videos, got {len(videos)}"
+
+    # Verify 2 videos per channel
+    channel_counts = {}
+    for video in videos:
+        channel = video["youtubeChannelName"]
+        channel_counts[channel] = channel_counts.get(channel, 0) + 1
+
+    assert all(
+        count == 2 for count in channel_counts.values()
+    ), f"Expected 2 per channel, got {channel_counts}"
+
+
+@patch("backend.services.viewing_session.calculate_engagement_scores")
+@patch("backend.services.viewing_session.get_available_videos")
+@patch("backend.services.viewing_session.get_watch_history_for_date")
+@patch("backend.services.viewing_session.get_setting")
+def test_unit_019_grace_mode_bypasses_engagement(
+    mock_get_setting, mock_get_history, mock_get_videos, mock_calc_scores
+):
+    """
+    Test 4.4-UNIT-019: If max_duration == 300: return random.sample() immediately (grace bypass).
+
+    This test verifies Story 4.3 compatibility:
+    - Grace mode (max_duration_seconds=300) bypasses engagement logic
+    - Uses simple random selection instead
+    - Engagement scoring NOT called
+
+    Scenario:
+    - 15 videos available
+    - max_duration_seconds=300 (grace mode indicator)
+
+    Expected:
+    - Engagement scoring NOT called (bypassed)
+    - Random selection used
+    - Videos returned successfully
+    """
+    # Setup: 15 videos (all short enough for grace mode)
+    mock_videos = create_mock_videos(15)
+    mock_get_videos.return_value = mock_videos
+    mock_get_history.return_value = []
+    mock_get_setting.return_value = "30"
+
+    # Call get_videos_for_grid with grace mode indicator
+    videos, _ = get_videos_for_grid(count=6, max_duration_seconds=300)
+
+    # Verify videos returned
+    assert len(videos) == 6, f"Expected 6 grace videos, got {len(videos)}"
+
+    # Verify engagement scoring was NOT called (bypassed)
+    mock_calc_scores.assert_not_called()

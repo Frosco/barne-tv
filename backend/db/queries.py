@@ -843,6 +843,64 @@ def delete_todays_countable_history(date: str, conn=None) -> int:
             return cursor.rowcount
 
 
+def delete_engagement_history(video_id: str | None = None, conn=None) -> int:
+    """
+    Delete engagement watch history entries (for parent engagement reset).
+
+    TIER 1 Rules Applied:
+    - Rule 2: Only delete entries where manual_play=0 AND grace_play=0 (keeps parent/grace history)
+    - Rule 6: Always use SQL placeholders (never string formatting)
+
+    TIER 2 Rule 7: Always use context manager for database access.
+
+    Args:
+        video_id: Optional YouTube video ID. If provided, delete only that video's engagement.
+                  If None, delete ALL engagement data (all countable watch_history).
+        conn: Optional database connection (for testing). If None, creates new connection.
+
+    Returns:
+        Number of watch_history rows deleted
+
+    Example:
+        # Reset engagement for single video
+        count = delete_engagement_history('dQw4w9WgXcQ')
+        print(f"Deleted {count} engagement entries for video")
+
+        # Reset ALL engagement data
+        count = delete_engagement_history()
+        print(f"Deleted {count} total engagement entries")
+    """
+    # TIER 1 Rule 2: Only delete countable entries (preserves manual_play=1 and grace_play=1)
+    # TIER 1 Rule 6: Always use SQL placeholders
+    if video_id:
+        # Reset engagement for specific video only
+        query = """
+            DELETE FROM watch_history
+            WHERE video_id = ?
+            AND manual_play = 0
+            AND grace_play = 0
+        """
+        params: tuple[str, ...] = (video_id,)
+    else:
+        # Reset ALL engagement data (all countable watch history)
+        query = """
+            DELETE FROM watch_history
+            WHERE manual_play = 0
+            AND grace_play = 0
+        """
+        params = ()
+
+    if conn is not None:
+        # For testing: use provided connection
+        cursor = conn.execute(query, params) if params else conn.execute(query)
+        return cursor.rowcount
+    else:
+        # TIER 2 Rule 7: Always use context manager for production
+        with get_connection() as conn:
+            cursor = conn.execute(query, params) if params else conn.execute(query)
+            return cursor.rowcount
+
+
 # =============================================================================
 # LIMIT WARNINGS (Story 4.2)
 # =============================================================================

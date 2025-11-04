@@ -92,6 +92,12 @@ class LogWarningRequest(BaseModel):
     shownAt: str  # ISO 8601 UTC timestamp
 
 
+class ResetEngagementRequest(BaseModel):
+    """Request model for resetting engagement data (Story 4.4)."""
+
+    videoId: str | None = None  # Optional: reset single video, omit for reset all
+
+
 # =============================================================================
 # ADMIN AUTHENTICATION ROUTES (Story 1.4)
 # =============================================================================
@@ -1686,6 +1692,95 @@ def reset_limit(request: Request, response: Response):
         # Generic error handler
         # TIER 3 Rule 14: Norwegian error message
         logger.error(f"Error resetting daily limit: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
+        )
+
+
+@router.post("/admin/engagement/reset")
+@limiter.limit("100/minute")
+def reset_engagement(
+    request: Request, response: Response, body: ResetEngagementRequest | None = None
+):
+    """
+    Reset engagement data (deletes countable watch history entries).
+
+    TIER 1 Rules Applied:
+    - Rule 2: Only deletes manual_play=0 AND grace_play=0 (preserves parent/grace entries)
+    - Rule 6: Uses SQL placeholders (via delete_engagement_history)
+
+    TIER 2 Rules Applied:
+    - Rule 10: Require authentication via require_auth()
+    - Rule 12: Consistent API response structure
+
+    TIER 3 Rule 14: Norwegian success message.
+
+    Args:
+        request: FastAPI Request object for authentication
+        response: FastAPI Response object
+        body: Optional request body with videoId (if omitted, resets all engagement)
+
+    Returns:
+        Success (200): {
+            "success": true,
+            "message": "Engasjementsdata tilbakestilt",
+            "deletedCount": 42
+        }
+        Error (401): Unauthorized (no valid session)
+        Error (500): {"error": "Internal error", "message": "Noe gikk galt"}
+
+    Example:
+        # Reset all engagement data
+        POST /admin/engagement/reset
+        Body: {}
+        Response: {
+            "success": true,
+            "message": "Engasjementsdata tilbakestilt",
+            "deletedCount": 42
+        }
+
+        # Reset engagement for single video
+        POST /admin/engagement/reset
+        Body: {"videoId": "dQw4w9WgXcQ"}
+        Response: {
+            "success": true,
+            "message": "Engasjementsdata tilbakestilt",
+            "deletedCount": 5
+        }
+    """
+    # TIER 2 Rule 10: Require authentication
+    require_auth(request)
+
+    try:
+        # Extract video_id from body (None if not provided)
+        video_id = body.videoId if body else None
+
+        # Call database function to delete engagement data
+        # TIER 1 Rule 2: Only deletes countable entries (preserves manual/grace)
+        # TIER 1 Rule 6: Uses SQL placeholders (via delete_engagement_history)
+        from backend.db.queries import delete_engagement_history
+
+        deleted_count = delete_engagement_history(video_id=video_id)
+
+        if video_id:
+            logger.info(
+                f"Engagement data reset for video {video_id} by admin ({deleted_count} entries)"
+            )
+        else:
+            logger.info(f"All engagement data reset by admin ({deleted_count} entries)")
+
+        # TIER 2 Rule 12: Consistent response structure
+        # TIER 3 Rule 14: Norwegian success message
+        return {
+            "success": True,
+            "message": "Engasjementsdata tilbakestilt",
+            "deletedCount": deleted_count,
+        }
+
+    except Exception as e:
+        # Generic error handler
+        # TIER 3 Rule 14: Norwegian error message
+        logger.error(f"Error resetting engagement data: {e}", exc_info=True)
         return JSONResponse(
             status_code=500, content={"error": "Internal error", "message": "Noe gikk galt"}
         )
