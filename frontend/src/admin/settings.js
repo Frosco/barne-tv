@@ -1,5 +1,5 @@
 /**
- * Admin Settings Module (Story 3.2)
+ * Admin Settings Module (Story 3.2, extended in Story 4.5)
  *
  * Handles:
  * - Loading and displaying current settings
@@ -7,6 +7,7 @@
  * - Dirty state tracking (enable/disable save button)
  * - Saving changes (partial update)
  * - Resetting to defaults
+ * - Volume slider with real-time percentage display (Story 4.5)
  *
  * TIER 2 Rules:
  * - All API calls wrapped in try/catch with Norwegian error messages
@@ -57,6 +58,12 @@ export function initSettings() {
   inputs.forEach((input) => {
     input.addEventListener('input', handleInputChange);
   });
+
+  // Attach volume slider handler (Story 4.5)
+  const volumeSlider = document.getElementById('audio-volume');
+  if (volumeSlider) {
+    volumeSlider.addEventListener('input', handleVolumeChange);
+  }
 }
 
 /**
@@ -115,6 +122,14 @@ async function loadSettings() {
     document.getElementById('grid-size').value = settings.grid_size;
     document.getElementById('audio-enabled').checked = settings.audio_enabled;
 
+    // Populate audio volume (Story 4.5)
+    const audioVolume = settings.audio_volume ?? 0.7;
+    const volumeSlider = document.getElementById('audio-volume');
+    if (volumeSlider) {
+      volumeSlider.value = Math.round(audioVolume * 100); // Convert 0.0-1.0 to 0-100
+      updateVolumeDisplay(volumeSlider.value);
+    }
+
     // Reset dirty state
     isDirty = false;
 
@@ -138,7 +153,8 @@ function handleInputChange() {
     currentSettings.daily_limit_minutes !==
       originalSettings.daily_limit_minutes ||
     currentSettings.grid_size !== originalSettings.grid_size ||
-    currentSettings.audio_enabled !== originalSettings.audio_enabled;
+    currentSettings.audio_enabled !== originalSettings.audio_enabled ||
+    currentSettings.audio_volume !== originalSettings.audio_volume;
 
   // Validate fields
   const isValid = validateForm();
@@ -147,10 +163,37 @@ function handleInputChange() {
 }
 
 /**
+ * Handle volume slider change (Story 4.5).
+ * Updates the percentage display in real-time.
+ * @param {Event} event - Input event
+ */
+function handleVolumeChange(event) {
+  const sliderValue = parseInt(event.target.value, 10);
+  updateVolumeDisplay(sliderValue);
+  handleInputChange(); // Trigger dirty tracking
+}
+
+/**
+ * Update volume percentage display (Story 4.5).
+ * @param {number} sliderValue - Slider value (0-100)
+ */
+function updateVolumeDisplay(sliderValue) {
+  const volumePercentage = document.getElementById('volume-percentage');
+  if (volumePercentage) {
+    volumePercentage.textContent = `${sliderValue}%`;
+  }
+}
+
+/**
  * Get current form values.
  * @returns {Object} Current form values
  */
 function getFormValues() {
+  const volumeSlider = document.getElementById('audio-volume');
+  const volumeValue = volumeSlider
+    ? parseInt(volumeSlider.value, 10) / 100
+    : 0.7;
+
   return {
     daily_limit_minutes: parseInt(
       document.getElementById('daily-limit').value,
@@ -158,6 +201,7 @@ function getFormValues() {
     ),
     grid_size: parseInt(document.getElementById('grid-size').value, 10),
     audio_enabled: document.getElementById('audio-enabled').checked,
+    audio_volume: volumeValue, // Convert 0-100 to 0.0-1.0
   };
 }
 
@@ -238,6 +282,9 @@ async function handleSubmit(event) {
     if (currentSettings.audio_enabled !== originalSettings.audio_enabled) {
       changedSettings.audio_enabled = currentSettings.audio_enabled;
     }
+    if (currentSettings.audio_volume !== originalSettings.audio_volume) {
+      changedSettings.audio_volume = currentSettings.audio_volume;
+    }
 
     // Call API
     const response = await updateSettings(changedSettings);
@@ -285,6 +332,14 @@ async function handleReset() {
     document.getElementById('grid-size').value = response.settings.grid_size;
     document.getElementById('audio-enabled').checked =
       response.settings.audio_enabled;
+
+    // Reload audio volume (Story 4.5)
+    const audioVolume = response.settings.audio_volume ?? 0.7;
+    const volumeSlider = document.getElementById('audio-volume');
+    if (volumeSlider) {
+      volumeSlider.value = Math.round(audioVolume * 100);
+      updateVolumeDisplay(volumeSlider.value);
+    }
 
     isDirty = false;
     updateSaveButton();

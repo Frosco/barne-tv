@@ -56,21 +56,48 @@
         <span class="error-text" id="grid-size-error"></span>
       </div>
 
-      <!-- Audio enabled -->
-      <div class="form-group form-group-checkbox">
-        <label for="audio-enabled" class="form-label">
+      <!-- Audio settings section (Story 4.5) -->
+      <div class="form-group">
+        <h3 class="form-section-title">Lydinnstillinger</h3>
+
+        <!-- Audio enabled -->
+        <div class="form-group form-group-checkbox">
+          <label for="audio-enabled" class="form-label">
+            <input
+              type="checkbox"
+              id="audio-enabled"
+              name="audio_enabled"
+              class="form-checkbox"
+              aria-describedby="audio-help"
+            />
+            Aktiver lyder
+          </label>
+          <span class="help-text" id="audio-help">
+            Spill av lydvarsler og klikklyder. Lydene er enkle, ikke forstyrrende.
+          </span>
+        </div>
+
+        <!-- Audio volume -->
+        <div class="form-group">
+          <label for="audio-volume" class="form-label">
+            Lydvolum
+            <span id="volume-percentage" class="volume-display">70%</span>
+          </label>
           <input
-            type="checkbox"
-            id="audio-enabled"
-            name="audio_enabled"
-            class="form-checkbox"
-            aria-describedby="audio-help"
+            type="range"
+            id="audio-volume"
+            name="audio_volume"
+            class="form-range"
+            min="0"
+            max="100"
+            step="5"
+            aria-label="Lydvolum"
+            aria-describedby="audio-volume-help"
           />
-          Lydvarsler aktivert
-        </label>
-        <span class="help-text" id="audio-help">
-          Spill av lydvarsler ved 10, 5, og 2 minutter igjen. Lydvarslene er enkle 'pling'-lyder, ikke forstyrrende alarmer.
-        </span>
+          <span class="help-text" id="audio-volume-help">
+            Juster volumet for alle lyder (0% = stille, 100% = full styrke).
+          </span>
+        </div>
       </div>
 
       <!-- Engagement data reset (Story 4.4) -->
@@ -134,6 +161,19 @@
 .settings-form.loading {
   opacity: 0.6;
   pointer-events: none;
+}
+
+/* Audio volume controls (Story 4.5) */
+.volume-display {
+  margin-left: var(--space-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.form-range {
+  width: 100%;
+  margin: var(--space-sm) 0;
+  cursor: pointer;
 }
 
 /* Engagement reset section (Story 4.4) */
