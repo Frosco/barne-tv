@@ -13,6 +13,7 @@
  */
 
 import { createPlayer } from './player.js';
+import { playClickSound } from './audio-manager.js'; // Story 4.5
 
 // Module state
 let currentVideos = [];
@@ -269,7 +270,7 @@ function attachCardListeners() {
 }
 
 /**
- * Handle video card click/activation (Story 2.2).
+ * Handle video card click/activation (Story 2.2, audio added in Story 4.5).
  *
  * Creates player, hides grid, and disables cards.
  *
@@ -282,6 +283,9 @@ async function handleCardClick(event) {
   const videoId = card.dataset.videoId;
 
   console.log(`Video card clicked: ${videoId}`);
+
+  // Story 4.5 AC 1: Play click sound on thumbnail click
+  playClickSound();
 
   try {
     // Disable all cards during loading

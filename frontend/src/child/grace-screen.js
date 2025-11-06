@@ -1,5 +1,5 @@
 /**
- * Grace screen handling for Story 4.3.
+ * Grace screen handling for Story 4.3, audio added in Story 4.5.
  *
  * Manages the grace video selection screen shown when daily limit is reached.
  * Child can choose one final grace video (≤5 minutes) or finish for the day.
@@ -7,6 +7,9 @@
  * TIER 2 Rule 9: Always handle API errors gracefully
  * TIER 3 Rule 14: Norwegian UI messages
  */
+
+// Story 4.5: Audio feedback
+import { playGraceNotification } from './audio-manager.js';
 
 /**
  * Calculate time remaining until midnight UTC.
@@ -264,6 +267,9 @@ function handleGraceDecline() {
  * Sets up button handlers and countdown display.
  */
 export function initGraceScreen() {
+  // Story 4.5: Play grace notification sound when grace screen is displayed
+  playGraceNotification();
+
   const yesButton = document.getElementById('grace-yes-btn');
   const noButton = document.getElementById('grace-no-btn');
   const countdownElement = document.getElementById('time-until-reset');

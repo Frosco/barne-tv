@@ -18,6 +18,9 @@
  * - No localStorage/sessionStorage
  */
 
+// Story 4.5: Audio feedback
+import { playTransitionSound } from './audio-manager.js';
+
 // Player state
 let playerInstance = null;
 let startTime = null;
@@ -422,11 +425,14 @@ function showErrorOverlay(message, autoReturn) {
 }
 
 /**
- * Return to grid view.
+ * Return to grid view (Story 4.5: Added transition sound).
  *
  * @param {boolean} fetchNewVideos - If true, fetch new random videos. If false, show existing grid.
  */
 function returnToGrid(fetchNewVideos) {
+  // Story 4.5 AC 2: Play transition sound when returning to grid
+  playTransitionSound();
+
   // Clear error overlay if present
   const errorOverlay = playerContainer?.querySelector('[data-error-overlay]');
   if (errorOverlay) {
