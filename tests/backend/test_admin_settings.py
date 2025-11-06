@@ -399,3 +399,99 @@ def test_reset_settings_preserves_password(test_client, test_db):
     current_hash = current_hash_result[0]
 
     assert current_hash == original_hash  # Password preserved
+
+
+# =============================================================================
+# AUDIO VOLUME VALIDATION TESTS (Story 4.5) - P0 PRIORITY
+# =============================================================================
+
+
+@pytest.mark.tier1
+def test_update_settings_validates_audio_volume_range(test_client, test_db):
+    """
+    Test PUT /api/admin/settings validates audio_volume range (0.0-1.0).
+
+    Verifies TIER 1 Rule 5: Input validation for volume setting.
+    This is a P0 test per Story 4.5 test design (4.5-INT-003).
+    """
+    # Arrange
+    authenticate_client(test_client, test_db)
+
+    # Act & Assert: Valid values should succeed
+    valid_volumes = [0.0, 0.5, 0.7, 1.0]
+    for volume in valid_volumes:
+        response = test_client.put("/api/admin/settings", json={"audio_volume": volume})
+        assert response.status_code == 200, f"Valid volume {volume} should be accepted"
+        data = response.json()
+        assert data["success"] is True
+        assert data["settings"]["audio_volume"] == volume
+
+
+@pytest.mark.tier1
+def test_update_settings_rejects_invalid_audio_volumes(test_client, test_db):
+    """
+    Test PUT /api/admin/settings rejects invalid audio_volume values.
+
+    Verifies TIER 1 Rule 5: Security - Prevents injection via invalid inputs.
+    This is a P0 test per Story 4.5 test design (4.5-INT-004).
+    """
+    # Arrange
+    authenticate_client(test_client, test_db)
+
+    # Act & Assert: Invalid values should be rejected with 422
+    invalid_volumes = [
+        -0.1,  # Negative
+        -1.0,  # Negative
+        1.1,  # Above maximum
+        2.0,  # Way above maximum
+        999.9,  # Extremely high
+    ]
+
+    for volume in invalid_volumes:
+        response = test_client.put("/api/admin/settings", json={"audio_volume": volume})
+        assert response.status_code == 422, f"Invalid volume {volume} should be rejected"
+
+
+def test_get_settings_returns_audio_volume(test_client, test_db):
+    """
+    Test GET /api/admin/settings returns audio_volume setting.
+
+    Verifies AC 5: Volume controls accessible via API.
+    Story 4.5 test: 4.5-INT-002
+    """
+    # Arrange
+    authenticate_client(test_client, test_db)
+
+    # Act
+    response = test_client.get("/api/admin/settings")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    assert "settings" in data
+    assert "audio_volume" in data["settings"]
+    assert isinstance(data["settings"]["audio_volume"], float)
+    assert 0.0 <= data["settings"]["audio_volume"] <= 1.0
+
+
+def test_update_settings_persists_audio_volume(test_client, test_db):
+    """
+    Test PUT /api/admin/settings persists audio_volume to database.
+
+    Verifies AC 5: Volume setting is saved and retrieved correctly.
+    Story 4.5 test: 4.5-INT-001 (adapted for volume)
+    """
+    # Arrange
+    authenticate_client(test_client, test_db)
+
+    # Act: Update volume
+    update_response = test_client.put("/api/admin/settings", json={"audio_volume": 0.85})
+
+    # Act: Fetch settings to verify persistence
+    get_response = test_client.get("/api/admin/settings")
+
+    # Assert
+    assert update_response.status_code == 200
+    assert get_response.status_code == 200
+    data = get_response.json()
+    assert data["settings"]["audio_volume"] == 0.85
