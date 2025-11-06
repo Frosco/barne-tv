@@ -74,7 +74,7 @@ class ReplayVideoRequest(BaseModel):
 
 
 class UpdateSettingsRequest(BaseModel):
-    """Request model for updating settings (Story 3.2).
+    """Request model for updating settings (Story 3.2, extended in Story 4.5).
 
     Supports partial updates - all fields optional.
     TIER 1 Rule 5: Pydantic validation enforces ranges.
@@ -83,6 +83,7 @@ class UpdateSettingsRequest(BaseModel):
     daily_limit_minutes: int | None = Field(None, ge=5, le=180)
     grid_size: int | None = Field(None, ge=4, le=15)
     audio_enabled: bool | None = None
+    audio_volume: float | None = Field(None, ge=0.0, le=1.0)
 
 
 class LogWarningRequest(BaseModel):
@@ -1345,11 +1346,13 @@ def get_settings(request: Request):
         daily_limit_str = get_setting("daily_limit_minutes")
         grid_size_str = get_setting("grid_size")
         audio_enabled_str = get_setting("audio_enabled")
+        audio_volume_str = get_setting("audio_volume")
 
         # Parse JSON-encoded values
         daily_limit = int(daily_limit_str)
         grid_size = int(grid_size_str)
         audio_enabled = audio_enabled_str == "true"
+        audio_volume = float(audio_volume_str)
 
         # TIER 2 Rule 12: Consistent response structure
         # TIER 1 Rule 4: NEVER return admin_password_hash
@@ -1359,6 +1362,7 @@ def get_settings(request: Request):
                     "daily_limit_minutes": daily_limit,
                     "grid_size": grid_size,
                     "audio_enabled": audio_enabled,
+                    "audio_volume": audio_volume,
                 }
             }
         )
@@ -1437,10 +1441,15 @@ def update_settings(request: Request, data: UpdateSettingsRequest):
             # JSON-encode boolean as 'true'/'false' string
             set_setting("audio_enabled", "true" if data.audio_enabled else "false")
 
+        if data.audio_volume is not None:
+            # Store as string (0.0-1.0 range validated by Pydantic)
+            set_setting("audio_volume", str(data.audio_volume))
+
         # Fetch updated settings to return
         daily_limit = int(get_setting("daily_limit_minutes"))
         grid_size = int(get_setting("grid_size"))
         audio_enabled = get_setting("audio_enabled") == "true"
+        audio_volume = float(get_setting("audio_volume"))
 
         logger.info("Settings updated successfully")
 
@@ -1453,6 +1462,7 @@ def update_settings(request: Request, data: UpdateSettingsRequest):
                     "daily_limit_minutes": daily_limit,
                     "grid_size": grid_size,
                     "audio_enabled": audio_enabled,
+                    "audio_volume": audio_volume,
                 },
                 "message": "Innstillinger lagret",
             }
@@ -1519,6 +1529,7 @@ def reset_settings(request: Request):
         set_setting("daily_limit_minutes", "30")
         set_setting("grid_size", "9")
         set_setting("audio_enabled", "true")
+        set_setting("audio_volume", "0.7")
 
         # TIER 1 Rule 4: NEVER reset admin_password_hash
 
@@ -1529,7 +1540,12 @@ def reset_settings(request: Request):
         return JSONResponse(
             content={
                 "success": True,
-                "settings": {"daily_limit_minutes": 30, "grid_size": 9, "audio_enabled": True},
+                "settings": {
+                    "daily_limit_minutes": 30,
+                    "grid_size": 9,
+                    "audio_enabled": True,
+                    "audio_volume": 0.7,
+                },
                 "message": "Innstillinger tilbakestilt",
             }
         )

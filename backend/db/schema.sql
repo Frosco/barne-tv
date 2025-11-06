@@ -192,6 +192,7 @@ INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES
     ('daily_limit_minutes', '30', datetime('now')),
     ('grid_size', '9', datetime('now')),
     ('audio_enabled', 'true', datetime('now')),
+    ('audio_volume', '0.7', datetime('now')),
     ('admin_password_hash', '""', datetime('now'));
 
 -- =============================================================================
