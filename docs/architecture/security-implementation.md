@@ -12,7 +12,7 @@ Security in this application operates on two levels: **child safety** (preventin
 
 ```python
 # backend/auth.py
-from passlib.hash import bcrypt
+import bcrypt
 from datetime import datetime, timezone, timedelta
 import secrets
 
@@ -20,12 +20,14 @@ import secrets
 sessions = {}  # session_id -> {created_at, expires_at}
 
 def hash_password(password: str) -> str:
-    """Hash password using bcrypt with automatic salt generation."""
-    return bcrypt.hash(password)
+    """Hash password using bcrypt>=4.2.1 with automatic salt generation."""
+    password_bytes = password.encode('utf-8')
+    hashed_bytes = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+    return hashed_bytes.decode('utf-8')
 
 def verify_password(password: str, hashed: str) -> bool:
     """Verify password against bcrypt hash."""
-    return bcrypt.verify(password, hashed)
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 def create_session() -> str:
     """Create new admin session, expires in 24 hours."""
@@ -98,10 +100,11 @@ async def admin_login(request: Request, password: str):
 ```bash
 # 1. Generate new password hash
 python3 << EOF
-from passlib.hash import bcrypt
-import json
-new_hash = bcrypt.hash("new_password_here")
-print(json.dumps(new_hash))  # Proper JSON encoding
+import bcrypt
+password = b"new_password_here"
+hashed_bytes = bcrypt.hashpw(password, bcrypt.gensalt())
+hashed = hashed_bytes.decode('utf-8')
+print(hashed)
 EOF
 
 # 2. Update database directly
@@ -764,14 +767,14 @@ updates:
 ```toml
 [project]
 dependencies = [
-    "fastapi==0.109.0",                    # Exact version, not >=
-    "uvicorn[standard]==0.27.0",
-    "jinja2==3.1.3",
-    "google-api-python-client==2.113.0",
-    "passlib[bcrypt]==1.7.4",
-    "requests==2.31.0",
-    "python-multipart==0.0.6",
-    "isodate==0.6.1",
+    "fastapi==0.118.0",
+    "uvicorn[standard]==0.37.0",
+    "jinja2==3.1.6",
+    "google-api-python-client==2.184.0",
+    "bcrypt>=4.2.1",                       # Modern Rust-based bcrypt
+    "requests==2.32.5",
+    "python-multipart==0.0.20",
+    "isodate==0.7.2",
 ]
 ```
 

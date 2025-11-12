@@ -274,10 +274,12 @@ def init_database():
 
 def set_admin_password(password: str):
     """Set initial admin password with proper JSON encoding."""
-    from passlib.hash import bcrypt
-    
-    hashed = bcrypt.hash(password)
-    
+    import bcrypt
+
+    password_bytes = password.encode('utf-8')
+    hashed_bytes = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+    hashed = hashed_bytes.decode('utf-8')
+
     conn = sqlite3.connect(DATABASE_PATH)
     conn.execute(
         "UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'admin_password_hash'",
@@ -285,7 +287,7 @@ def set_admin_password(password: str):
     )
     conn.commit()
     conn.close()
-    
+
     print("Admin password set")
 
 if __name__ == '__main__':

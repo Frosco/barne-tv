@@ -37,7 +37,7 @@ This is the DEFINITIVE technology selection for the entire project. All developm
 | **Database Driver** | sqlite3 | Built-in | Synchronous SQLite access | Python standard library, simple and fast |
 | **Web Server** | Nginx | 1.24.0 | Reverse proxy & static files | Industry standard, handles SSL, static assets |
 | **Process Manager** | systemd | System default | Service supervision | Built into Linux, automatic restarts |
-| **Password Hashing** | passlib[bcrypt] | 1.7.4 | Secure password storage | Industry standard, bcrypt algorithm |
+| **Password Hashing** | bcrypt | >=4.2.1 | Secure password storage | Modern Rust-based bcrypt implementation, faster and more secure |
 | **SSL Certificates** | Let's Encrypt (Certbot) | 2.8.0 | HTTPS encryption | Free SSL, automatic renewal |
 | **Frontend Testing** | Vitest | 3.2.4 | Frontend unit tests | Vite-native, fast, better DX than Jest |
 | **DOM Testing** | happy-dom | 19.0.2 | Lightweight DOM for tests | 2x faster than jsdom |
@@ -64,7 +64,7 @@ dependencies = [
     "jinja2==3.1.6",
     "google-api-python-client==2.184.0",
     "requests==2.32.5",
-    "passlib[bcrypt]==1.7.4",
+    "bcrypt>=4.2.1",
     "python-multipart==0.0.20",
     "isodate==0.7.2",
 ]

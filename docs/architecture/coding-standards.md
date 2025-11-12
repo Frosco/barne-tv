@@ -104,16 +104,18 @@ today = current_time.date()    # Wrong at midnight transitions
 ### 4. Admin Password Security
 
 ```python
-# ✅ CORRECT - Use bcrypt for password hashing
-from passlib.hash import bcrypt
+# ✅ CORRECT - Use bcrypt>=4.2.1 for password hashing (NOT passlib)
+import bcrypt
 
 # Storing password
-hashed = bcrypt.hash(password)
+password_bytes = password.encode('utf-8')
+hashed_bytes = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+hashed = hashed_bytes.decode('utf-8')
 db.set_setting('admin_password_hash', hashed)
 
 # Verifying password
 stored_hash = db.get_setting('admin_password_hash')
-is_valid = bcrypt.verify(password, stored_hash)
+is_valid = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
 
 # ❌ WRONG - Weak hashing or plain text
 import hashlib
@@ -654,7 +656,7 @@ export default {
 - ✅ Always filter banned videos from child selection
 - ✅ Exclude manual_play and grace_play from time limits
 - ✅ Use UTC for all time calculations
-- ✅ Hash passwords with bcrypt only
+- ✅ Hash passwords with bcrypt>=4.2.1 (vanilla bcrypt, NOT passlib)
 - ✅ Validate all parent inputs before processing
 - ✅ Use SQL placeholders, never string formatting
 
