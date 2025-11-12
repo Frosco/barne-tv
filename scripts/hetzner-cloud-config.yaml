@@ -1,0 +1,208 @@
+#cloud-config
+# ============================================================================
+# Hetzner VPS Cloud-Init Configuration
+# Safe YouTube Viewer for Kids - Production Server Setup
+# ============================================================================
+#
+# This cloud-config automates the initial server provisioning for Story 5.1.
+# It handles system updates, package installation, user creation, directory
+# structure setup, and firewall configuration.
+#
+# USAGE:
+#   1. Go to Hetzner Cloud Console (cloud.hetzner.com)
+#   2. Create new server: CX23, Falkenstein (Germany), Ubuntu 22.04 LTS
+#   3. In "Cloud config" section, paste this entire file
+#   4. Add your SSH public key in the SSH keys section
+#   5. Click "Create & Buy now"
+#   6. Wait 5-10 minutes for cloud-init to complete
+#   7. SSH into server and check: tail -f /var/log/cloud-init-output.log
+#
+# ACCEPTANCE CRITERIA AUTOMATED BY THIS FILE:
+#   AC 2:  Ubuntu 22.04 LTS updates
+#   AC 3:  UFW firewall default deny incoming
+#   AC 4:  UFW firewall enabled with rules
+#   AC 6:  Python 3.11.7+ installed
+#   AC 7:  python3.11-dev installed
+#   AC 8:  uv package manager installed
+#   AC 9:  Node.js v22 LTS installed
+#   AC 10: npm installed and functional
+#   AC 17: Application directory structure created
+#   AC 18: Directory ownership (youtube-viewer:youtube-viewer)
+#   AC 19: Directory permissions (700 for data/backups, 755 for logs)
+#   AC 25: System packages installed
+#
+# ============================================================================
+
+# Update package lists before installing anything (AC 2)
+package_update: true
+
+# Upgrade all installed packages to latest versions (AC 2)
+package_upgrade: true
+
+# ============================================================================
+# SYSTEM PACKAGES INSTALLATION (AC 6, 7, 25)
+# ============================================================================
+# Install required system packages via apt
+# - python3.11: Python runtime (must be 3.11.x, not 3.12)
+# - python3.11-dev: Development headers for compiling bcrypt
+# - python3.11-venv: Virtual environment support
+# - build-essential: GCC compiler for bcrypt/cryptography
+# - sqlite3: SQLite command-line tool
+# - nginx: Web server and reverse proxy
+# - certbot: Let's Encrypt SSL certificate manager
+# - python3-certbot-nginx: Nginx plugin for certbot
+# - curl: Required for Node.js installation script
+
+packages:
+  - python3.11
+  - python3.11-dev
+  - python3.11-venv
+  - build-essential
+  - sqlite3
+  - nginx
+  - certbot
+  - python3-certbot-nginx
+  - curl
+  - git
+
+# ============================================================================
+# USER AND GROUP CREATION (AC 18)
+# ============================================================================
+# Create dedicated system user for running the application
+# - User: youtube-viewer
+# - Group: youtube-viewer
+# - No password (service account)
+# - No shell access (security)
+# - System user (UID < 1000)
+
+users:
+  - name: youtube-viewer
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    groups: [youtube-viewer]
+
+# ============================================================================
+# POST-INSTALLATION COMMANDS (AC 3, 4, 8, 9, 10, 17, 19)
+# ============================================================================
+# Commands run after packages are installed
+# These must be idempotent (safe to run multiple times)
+
+runcmd:
+  # ------------------------------------------------------------------------
+  # Python Package Manager Installation (AC 8)
+  # ------------------------------------------------------------------------
+  # Install uv globally using pip
+  # uv is a fast Python package manager (replacement for pip)
+  - python3.11 -m pip install --upgrade pip
+  - python3.11 -m pip install uv
+
+  # ------------------------------------------------------------------------
+  # Node.js v22 LTS Installation (AC 9, 10)
+  # ------------------------------------------------------------------------
+  # Ubuntu 22.04 repos have outdated Node.js versions
+  # Use NodeSource repository to get Node.js v22 LTS
+  # This also installs npm automatically
+  - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  - apt-get install -y nodejs
+  - node --version > /var/log/nodejs-version.log
+  - npm --version > /var/log/npm-version.log
+
+  # ------------------------------------------------------------------------
+  # Application Directory Structure (AC 17)
+  # ------------------------------------------------------------------------
+  # Create production directory structure at /opt/youtube-viewer/
+  # - data/    : SQLite database storage
+  # - backups/ : Database backup files
+  # - logs/    : Application log files
+  - mkdir -p /opt/youtube-viewer/data
+  - mkdir -p /opt/youtube-viewer/backups
+  - mkdir -p /opt/youtube-viewer/logs
+
+  # ------------------------------------------------------------------------
+  # Directory Permissions (AC 19)
+  # ------------------------------------------------------------------------
+  # Set restrictive permissions for security:
+  # - data/    : 700 (only youtube-viewer user can read/write/execute)
+  # - backups/ : 700 (only youtube-viewer user can read/write/execute)
+  # - logs/    : 755 (youtube-viewer writes, admins can read)
+  - chmod 700 /opt/youtube-viewer/data
+  - chmod 700 /opt/youtube-viewer/backups
+  - chmod 755 /opt/youtube-viewer/logs
+
+  # ------------------------------------------------------------------------
+  # Directory Ownership (AC 18)
+  # ------------------------------------------------------------------------
+  # Set ownership to youtube-viewer user and group
+  # This ensures the application service can access these directories
+  - chown -R youtube-viewer:youtube-viewer /opt/youtube-viewer
+
+  # ------------------------------------------------------------------------
+  # UFW Firewall Configuration (AC 3, 4)
+  # ------------------------------------------------------------------------
+  # Configure Uncomplicated Firewall (UFW) for security
+  # IMPORTANT: Allow SSH (port 22) BEFORE enabling firewall to avoid lockout
+
+  # Set default policies
+  - ufw default deny incoming    # Block all incoming traffic by default
+  - ufw default allow outgoing   # Allow all outgoing traffic
+
+  # Allow essential services
+  - ufw allow 22/tcp comment 'SSH access'
+  - ufw allow 80/tcp comment 'HTTP (redirects to HTTPS)'
+  - ufw allow 443/tcp comment 'HTTPS'
+
+  # Enable firewall (non-interactive with --force flag)
+  - ufw --force enable
+
+  # Log firewall status for verification
+  - ufw status verbose > /var/log/ufw-status.log
+
+  # ------------------------------------------------------------------------
+  # System Information Logging
+  # ------------------------------------------------------------------------
+  # Log system state for verification and debugging
+  - echo "Cloud-init completed at $(date)" > /var/log/cloud-init-complete.log
+  - python3.11 --version >> /var/log/cloud-init-complete.log
+  - uv --version >> /var/log/cloud-init-complete.log
+  - node --version >> /var/log/cloud-init-complete.log
+  - npm --version >> /var/log/cloud-init-complete.log
+  - sqlite3 --version >> /var/log/cloud-init-complete.log
+  - nginx -v 2>> /var/log/cloud-init-complete.log
+  - certbot --version >> /var/log/cloud-init-complete.log
+
+# ============================================================================
+# FINAL NOTES
+# ============================================================================
+#
+# After cloud-init completes, you still need to perform manual configuration:
+#
+# 1. SSH Hardening (AC 5):
+#    - Edit /etc/ssh/sshd_config
+#    - Set: PermitRootLogin no
+#    - Set: PasswordAuthentication no
+#    - Restart: sudo systemctl restart sshd
+#
+# 2. Nginx Configuration (AC 11-15):
+#    - Copy scripts/nginx-config.conf to /etc/nginx/sites-available/
+#    - Create symlink to sites-enabled
+#    - Test config: sudo nginx -t
+#    - Reload: sudo systemctl reload nginx
+#
+# 3. SSL Certificate (AC 16):
+#    - Ensure domain points to server IP
+#    - Run: sudo certbot --nginx -d yourdomain.com
+#
+# 4. Environment Configuration (AC 21-22):
+#    - Copy .env.example to /opt/youtube-viewer/.env
+#    - Edit with production values (API key, domain, etc.)
+#    - Set permissions: sudo chmod 600 /opt/youtube-viewer/.env
+#    - Set ownership: sudo chown youtube-viewer:youtube-viewer .env
+#
+# 5. Database Permissions (AC 20):
+#    - After database initialization (Story 5.2)
+#    - Set permissions: sudo chmod 600 /opt/youtube-viewer/data/app.db
+#
+# For verification, run: scripts/verify-server-setup.sh
+#
+# ============================================================================
