@@ -1,0 +1,145 @@
+# Quality Gate: Story 5.1 - Production Server Setup
+
+schema: 1
+story: "5.1"
+story_title: "Production Server Setup (Hetzner VPS)"
+gate: PASS
+status_reason: "All critical infrastructure correctly configured with excellent security posture. Minor documentation and version deviations are acceptable and do not impact functionality."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-12T12:10:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "DOC-001"
+    severity: medium
+    finding: "AC 23 documentation references passlib, but project uses vanilla bcrypt>=4.2.1"
+    suggested_action: "Update AC 23 and Dev Notes to reflect switch from passlib to bcrypt>=4.2.1"
+    suggested_owner: "dev"
+  - id: "VER-001"
+    severity: low
+    finding: "Ubuntu 24.04 deployed instead of specified 22.04 (acceptable upgrade)"
+    suggested_action: "Update documentation to accept Ubuntu 22.04+ LTS versions"
+    suggested_owner: "dev"
+  - id: "VER-002"
+    severity: low
+    finding: "Nginx 1.24.0 and SQLite 3.45.1 vs specified 1.28.0+ and 3.51.0 (Ubuntu repo versions)"
+    suggested_action: "Document that Ubuntu LTS repository versions are acceptable"
+    suggested_owner: "dev"
+
+quality_score: 90
+expires: "2025-11-26T23:59:59Z"
+
+evidence:
+  tests_reviewed: 0
+  manual_verification: true
+  verification_method: "SSH access to production server (46.62.239.155)"
+  verification_commands:
+    - "ufw status verbose"
+    - "cat /etc/ssh/sshd_config"
+    - "nginx -v && certbot certificates"
+    - "stat -c '%a %U:%G' /opt/youtube-viewer/{data,backups,logs,.env}"
+    - "curl -I https://refsnes-barnetv.no"
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24, 25]
+    ac_gaps: [20]
+    ac_deferred:
+      - number: 20
+        reason: "Database file will be created during Story 5.2 deployment"
+    ac_deviations:
+      - number: 2
+        specified: "Ubuntu 22.04 LTS"
+        actual: "Ubuntu 24.04.3 LTS"
+        impact: "Positive - newer LTS with better security patches"
+      - number: 23
+        specified: "Test passlib bcrypt"
+        actual: "python3.11-dev functional, system bcrypt 3.2.2 broken (unused by app)"
+        impact: "None - Application will use venv with bcrypt>=4.2.1"
+      - number: 24
+        specified: "SQLite 3.51.0"
+        actual: "SQLite 3.45.1"
+        impact: "None - All required features present"
+      - number: 25
+        specified: "Nginx 1.28.0+"
+        actual: "Nginx 1.24.0"
+        impact: "None - All required features present"
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: |
+      Excellent security posture:
+      - Firewall: UFW active, only ports 22/80/443 allowed
+      - SSH: Key-only authentication, root login disabled
+      - SSL/TLS: Let's Encrypt certificate with auto-renewal
+      - Security headers: All required headers present (X-Frame-Options, CSP, HSTS, etc.)
+      - File permissions: Restrictive (600 for .env, 700 for data/backups)
+      - CSP: Properly configured to allow YouTube embedding while restricting other sources
+      - Privacy: robots.txt and X-Robots-Tag block search engines
+  performance:
+    status: PASS
+    notes: |
+      Server resources exceed requirements:
+      - RAM: 4GB (2x requirement)
+      - Disk: 38GB available (34GB free)
+      - Static caching: 7-day expires with immutable Cache-Control
+      - Compression: gzip_static enabled
+      - Nginx: Appropriate timeouts configured (60s)
+  reliability:
+    status: PASS
+    notes: |
+      High availability configuration:
+      - SSL auto-renewal: certbot.timer active (runs twice daily)
+      - Firewall: Persistent across reboots
+      - Services: Nginx enabled and running
+      - Logging: Directory prepared for troubleshooting
+  maintainability:
+    status: PASS
+    notes: |
+      Well-documented and organized:
+      - Nginx config with inline comments
+      - Verification script provided
+      - Clear directory structure
+      - Centralized environment configuration
+      - Comprehensive Dev Agent Record
+
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 1
+    low: 2
+  highest:
+    score: 4
+    category: "Documentation"
+    description: "bcrypt documentation references outdated passlib dependency"
+  recommendations:
+    must_fix: []
+    monitor:
+      - "Update AC 23 documentation before Story 5.2"
+      - "Monitor certbot.timer to ensure SSL auto-renewal succeeds"
+      - "Consider fail2ban for additional SSH protection (future enhancement)"
+
+recommendations:
+  immediate:
+    - action: "Update AC 23 documentation to reflect bcrypt>=4.2.1 instead of passlib"
+      refs: ["docs/stories/5.1.production-server-setup.md:23"]
+      priority: "medium"
+  future:
+    - action: "Update documentation to accept Ubuntu 22.04+ LTS versions"
+      refs: ["docs/stories/5.1.production-server-setup.md:2"]
+      priority: "low"
+    - action: "Document that Ubuntu LTS repository package versions are acceptable"
+      refs: ["docs/architecture/tech-stack.md"]
+      priority: "low"
+    - action: "Consider adding fail2ban for SSH brute-force protection"
+      refs: []
+      priority: "low"
+    - action: "Set up log rotation for nginx and application logs"
+      refs: []
+      priority: "low"
+
+history:
+  - at: "2025-11-12T12:10:00Z"
+    gate: PASS
+    note: "Initial QA review - Server infrastructure production-ready with excellent security posture"
