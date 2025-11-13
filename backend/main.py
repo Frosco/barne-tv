@@ -163,10 +163,23 @@ def health_check():
     """
     Health check endpoint for monitoring.
 
+    Story 5.3 AC 17: Verifies database connectivity.
+
     Returns:
-        Dictionary with status indicator
+        Dictionary with status and database connectivity indicator
+        - {"status": "ok", "database": "connected"} on success
+        - {"status": "error", "database": "disconnected"} on database failure
     """
-    return {"status": "ok"}
+    from backend.db.queries import get_connection
+
+    try:
+        # Test database connectivity with simple query
+        with get_connection() as conn:
+            conn.execute("SELECT 1").fetchone()
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Database connectivity check failed: {e}")
+        return {"status": "error", "database": "disconnected"}
 
 
 if __name__ == "__main__":
