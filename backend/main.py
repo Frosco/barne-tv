@@ -16,8 +16,12 @@ from fastapi.templating import Jinja2Templates
 from slowapi.errors import RateLimitExceeded
 
 from backend.config import DEBUG, ALLOWED_HOSTS, validate_config
+from backend.logging_config import setup_logging
 from backend.middleware import get_limiter, custom_rate_limit_handler
 from backend.routes import router
+
+# Initialize JSON logging (Story 5.4 AC 3-5)
+setup_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -170,16 +174,25 @@ def health_check():
         - {"status": "ok", "database": "connected"} on success
         - {"status": "error", "database": "disconnected"} on database failure
     """
+    from datetime import datetime, timezone
     from backend.db.queries import get_connection
 
     try:
         # Test database connectivity with simple query
         with get_connection() as conn:
             conn.execute("SELECT 1").fetchone()
-        return {"status": "ok", "database": "connected"}
+        return {
+            "status": "ok",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "database": "connected",
+        }
     except Exception as e:
         logger.error(f"Database connectivity check failed: {e}")
-        return {"status": "error", "database": "disconnected"}
+        return {
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "database": "disconnected",
+        }
 
 
 if __name__ == "__main__":

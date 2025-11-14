@@ -1,0 +1,43 @@
+# Systemd Timer Unit for YouTube Viewer Database Backup
+#
+# Story 5.4 AC 15: Daily backup at 2 AM UTC
+#
+# Installation:
+#   sudo cp scripts/systemd/youtube-viewer-backup.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable youtube-viewer-backup.timer
+#   sudo systemctl start youtube-viewer-backup.timer
+#
+# Check timer status:
+#   systemctl list-timers | grep youtube-viewer-backup
+#   systemctl status youtube-viewer-backup.timer
+#
+# View upcoming backup times:
+#   systemctl list-timers youtube-viewer-backup.timer
+#
+# Manual trigger (for testing):
+#   sudo systemctl start youtube-viewer-backup.service
+
+[Unit]
+Description=Daily YouTube Viewer Database Backup Timer
+Documentation=https://github.com/yourusername/safe-youtube-viewer
+Requires=youtube-viewer-backup.service
+
+[Timer]
+# Run daily at 2:00 AM UTC (Story 5.4 AC 15)
+# Format: DayOfWeek Year-Month-Day Hour:Minute:Second
+# *-*-* = every day of every month of every year
+OnCalendar=*-*-* 02:00:00
+
+# If system was powered off at backup time, run on next boot
+Persistent=true
+
+# Target service to trigger
+Unit=youtube-viewer-backup.service
+
+# Randomize start time by up to 15 minutes to avoid load spikes
+# if multiple services are scheduled at the same time
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

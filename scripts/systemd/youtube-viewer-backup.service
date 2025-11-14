@@ -1,0 +1,50 @@
+# Systemd Service Unit for YouTube Viewer Database Backup
+#
+# Story 5.4 AC 14: Systemd service for running database backups
+#
+# Installation:
+#   sudo cp scripts/systemd/youtube-viewer-backup.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable youtube-viewer-backup.timer
+#   sudo systemctl start youtube-viewer-backup.timer
+#
+# Manual execution (for testing):
+#   sudo systemctl start youtube-viewer-backup.service
+#
+# View logs:
+#   journalctl -u youtube-viewer-backup.service -n 50
+
+[Unit]
+Description=YouTube Viewer Database Backup
+Documentation=https://github.com/yourusername/safe-youtube-viewer
+After=network.target
+
+[Service]
+Type=oneshot
+User=youtube-viewer
+Group=youtube-viewer
+WorkingDirectory=/opt/youtube-viewer/app
+
+# Environment variables for backup script
+Environment="DB_PATH=/opt/youtube-viewer/data/app.db"
+Environment="BACKUP_DIR=/opt/youtube-viewer/backups"
+Environment="LOG_FILE=/var/log/youtube-viewer/backups.log"
+
+# Execute backup script
+ExecStart=/opt/youtube-viewer/app/scripts/backup.sh
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=youtube-viewer-backup
+
+# Resource limits (backup should be quick and low-impact)
+TimeoutStartSec=300
+CPUQuota=50%
+MemoryLimit=256M
+
+# Restart policy (don't restart on failure - timer will retry next day)
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

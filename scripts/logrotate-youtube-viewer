@@ -1,0 +1,46 @@
+# Logrotate configuration for Safe YouTube Viewer
+#
+# This file should be deployed to: /etc/logrotate.d/youtube-viewer
+#
+# Story 5.4 AC 6-8: Log rotation policy - daily, compress, keep 7 days
+#
+# Installation:
+#   sudo cp scripts/logrotate-youtube-viewer /etc/logrotate.d/youtube-viewer
+#   sudo chmod 644 /etc/logrotate.d/youtube-viewer
+#
+# Testing:
+#   sudo logrotate -d /etc/logrotate.d/youtube-viewer  # Dry-run
+#   sudo logrotate -f /etc/logrotate.d/youtube-viewer  # Force rotation
+
+/var/log/youtube-viewer/*.log {
+    # Rotate daily
+    daily
+
+    # Keep last 7 days of logs
+    rotate 7
+
+    # Compress old logs with gzip
+    compress
+
+    # Don't compress the most recent rotation (allows ongoing reads)
+    delaycompress
+
+    # Don't rotate if log file is empty
+    notifempty
+
+    # Don't fail if log file is missing
+    missingok
+
+    # Create new log file with specific permissions after rotation
+    # Format: create MODE OWNER GROUP
+    create 0640 youtube-viewer youtube-viewer
+
+    # Run postrotate script only once for all logs
+    sharedscripts
+
+    # Reload application after log rotation
+    # This ensures the application reopens the log file
+    postrotate
+        systemctl reload youtube-viewer.service >/dev/null 2>&1 || true
+    endscript
+}

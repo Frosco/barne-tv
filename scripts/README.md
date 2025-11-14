@@ -565,6 +565,636 @@ For issues with the deployment script:
 - **Architecture:** `docs/architecture/infrastructure-and-deployment.md`
 - **Epic 5:** `docs/prd/epic-5-deployment-production-readiness.md`
 - **Story 5.3:** `docs/stories/5.3.deployment-scripts-automation.md`
+- **Story 5.4:** `docs/stories/5.4.monitoring-maintenance-setup.md`
 - **Service Setup:** `scripts/systemd/youtube-viewer.service`
 - **Server Verification:** `scripts/verify-server-setup.sh` (Story 5.1)
 - **Service Verification:** `scripts/verify-service.sh` (Story 5.2)
+
+---
+
+# Monitoring & Maintenance Scripts (Story 5.4)
+
+This section documents the monitoring, backup, and maintenance scripts for operational management of the Safe YouTube Viewer application.
+
+## Scripts Overview
+
+### backup.sh
+
+Automated database backup with WAL checkpoint and retention policy.
+
+**Purpose:** Create timestamped database backups with secure permissions and automatic cleanup of old backups.
+
+**Usage:**
+```bash
+./scripts/backup.sh
+```
+
+**Features:**
+- Runs SQLite WAL checkpoint before backup (ensures consistency)
+- Generates filename: `app-YYYYMMDD-HHMMSS.db`
+- Sets secure permissions: 600 (read/write owner only)
+- Automatic retention: Deletes backups older than 7 days
+- Logs all operations to `/var/log/youtube-viewer/backups.log`
+
+**Environment Variables:**
+- `DB_PATH` - Database file path (default: `/opt/youtube-viewer/data/app.db`)
+- `BACKUP_DIR` - Backup directory (default: `/opt/youtube-viewer/backups`)
+- `LOG_FILE` - Backup log file (default: `/var/log/youtube-viewer/backups.log`)
+
+**Exit Codes:**
+- 0: Backup successful
+- 1: Backup failed (database not found, copy failed, etc.)
+
+**Scheduled Execution:** Runs automatically via systemd timer (daily at 2 AM UTC)
+
+---
+
+### restore.sh
+
+Database restore with integrity verification and automatic rollback on failure.
+
+**Purpose:** Safely restore database from backup with comprehensive verification and safety mechanisms.
+
+**Usage:**
+```bash
+# Must run as root (requires systemctl)
+sudo ./scripts/restore.sh <backup-filename>
+
+# Example
+sudo ./scripts/restore.sh app-20251112-020000.db
+```
+
+**Safety Features:**
+- Creates safety backup before restore (app.db.before-restore)
+- Runs database integrity check after restore
+- Automatic rollback if integrity check fails
+- Verifies service health after restart
+- Comprehensive logging of all operations
+
+**Restore Process:**
+1. Validates backup file exists
+2. Stops youtube-viewer.service
+3. Creates safety backup of current database
+4. Copies backup to active database location
+5. Sets secure permissions (600) and ownership
+6. Runs SQLite integrity check
+7. Rolls back if integrity check fails
+8. Restarts service if integrity check passes
+9. Waits 5 seconds for service initialization
+10. Verifies health endpoint responds correctly
+
+**Exit Codes:**
+- 0: Restore successful
+- 1: Restore failed (file not found, integrity check failed, service won't start, etc.)
+
+**List Available Backups:**
+```bash
+ls -1t /opt/youtube-viewer/backups/app-*.db
+```
+
+---
+
+### check-health.sh
+
+Comprehensive health check script with Norwegian output for weekly maintenance.
+
+**Purpose:** Perform weekly manual health checks covering all critical system components.
+
+**Usage:**
+```bash
+./scripts/check-health.sh
+```
+
+**Health Checks Performed:**
+
+1. **Service Status (Tjeneste Status)**
+   - youtube-viewer.service running/stopped
+   - nginx.service running/stopped
+   - Alert if either service is down
+
+2. **Disk Space (Diskplass)**
+   - Shows usage and available space
+   - Warns if >80% used (<20% free)
+   - Recommends action if threshold exceeded
+
+3. **Recent Errors (Siste Feil)**
+   - Counts ERROR entries in last 24 hours (from journalctl)
+   - Shows last 5 error messages if any found
+   - Alerts on database errors
+
+4. **Database Status (Database Status)**
+   - Shows database file size
+   - Runs SQLite quick integrity check
+   - Warns if integrity check fails
+
+5. **Backup Status (Backup Status)**
+   - Shows most recent backup timestamp
+   - Warns if last backup >48 hours old
+   - Shows total number of backups
+
+**Output:** Norwegian language for parent readability
+
+**Alert Thresholds (Story 5.4 AC 23):**
+- Service down: youtube-viewer or nginx not running
+- Disk space <20%: High usage warning
+- Database errors: Any ERROR entries in last 24 hours
+
+**Weekly Maintenance:** Run as part of weekly maintenance checklist
+
+---
+
+### dashboard.sh
+
+Real-time system dashboard with Norwegian output.
+
+**Purpose:** Display quick overview of system status for at-a-glance monitoring.
+
+**Usage:**
+```bash
+./scripts/dashboard.sh
+```
+
+**Dashboard Sections:**
+
+1. **Services (Tjenester)**
+   - ✅ Application: Running / ❌ Stopped
+   - ✅ Nginx: Running / ❌ Stopped
+
+2. **Resources (Ressurser)**
+   - CPU usage or load average
+   - Memory usage (used / total)
+   - Disk usage (used / total / percent)
+
+3. **Today's Activity (I dag aktivitet)**
+   - Number of videos watched today (UTC)
+   - Total watch time in minutes
+   - Time remaining vs daily limit
+
+4. **Recent Errors (Siste feil)**
+   - Count of ERROR entries in last hour
+   - Shows last 3 error messages if any
+
+**Output:** Norwegian language with emoji indicators
+
+**Use Case:** Quick status check, can be run anytime
+
+---
+
+## Systemd Timer Configuration
+
+### Automated Daily Backups
+
+**Service Unit:** `scripts/systemd/youtube-viewer-backup.service`
+**Timer Unit:** `scripts/systemd/youtube-viewer-backup.timer`
+
+**Installation:**
+```bash
+# Copy service and timer to systemd directory
+sudo cp scripts/systemd/youtube-viewer-backup.service /etc/systemd/system/
+sudo cp scripts/systemd/youtube-viewer-backup.timer /etc/systemd/system/
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable and start timer
+sudo systemctl enable youtube-viewer-backup.timer
+sudo systemctl start youtube-viewer-backup.timer
+```
+
+**Verification:**
+```bash
+# Check timer status
+systemctl list-timers | grep youtube-viewer-backup
+
+# View timer details
+systemctl status youtube-viewer-backup.timer
+
+# View backup service logs
+journalctl -u youtube-viewer-backup.service -n 50
+```
+
+**Schedule:** Daily at 2:00 AM UTC (with 15-minute randomized delay)
+
+**Manual Trigger:**
+```bash
+# Run backup manually (for testing)
+sudo systemctl start youtube-viewer-backup.service
+
+# Check backup completion
+journalctl -u youtube-viewer-backup.service -n 20
+```
+
+---
+
+## Application Logging
+
+### JSON Structured Logging
+
+**Configuration:** `backend/logging_config.py`
+
+**Log File:** `/var/log/youtube-viewer/app.log`
+
+**Format:** JSON with fields:
+- `timestamp`: ISO 8601 UTC timestamp
+- `level`: Log level (INFO, WARNING, ERROR, etc.)
+- `message`: Log message
+- `logger`: Logger name
+- `module`: Module name
+- `function`: Function name
+- `line`: Line number
+
+**Example Log Entry:**
+```json
+{
+  "timestamp": "2025-11-13T14:30:00.123456+00:00",
+  "level": "INFO",
+  "message": "Health check passed",
+  "logger": "backend.main",
+  "module": "main",
+  "function": "health_check",
+  "line": 180
+}
+```
+
+**Viewing Logs:**
+```bash
+# Tail application logs
+tail -f /var/log/youtube-viewer/app.log
+
+# View last 50 lines
+tail -n 50 /var/log/youtube-viewer/app.log
+
+# Parse JSON logs with jq
+tail -n 100 /var/log/youtube-viewer/app.log | jq '.message'
+
+# Filter by log level
+tail -n 100 /var/log/youtube-viewer/app.log | jq 'select(.level=="ERROR")'
+```
+
+### Log Rotation
+
+**Configuration File:** `scripts/logrotate-youtube-viewer`
+
+**Installation:**
+```bash
+# Copy to logrotate directory
+sudo cp scripts/logrotate-youtube-viewer /etc/logrotate.d/youtube-viewer
+sudo chmod 644 /etc/logrotate.d/youtube-viewer
+```
+
+**Policy:**
+- Rotate: Daily
+- Retention: 7 days
+- Compression: gzip (delayed by 1 day)
+- Permissions: 640 youtube-viewer:youtube-viewer
+
+**Testing:**
+```bash
+# Dry-run (test configuration)
+sudo logrotate -d /etc/logrotate.d/youtube-viewer
+
+# Force rotation (for testing)
+sudo logrotate -f /etc/logrotate.d/youtube-viewer
+
+# Verify rotated logs
+ls -lh /var/log/youtube-viewer/
+```
+
+---
+
+## Weekly Maintenance Checklist (Story 5.4 AC 24)
+
+Perform these maintenance tasks weekly to ensure system health and identify issues early.
+
+### Norwegian Checklist (For Parents)
+
+**Ukentlig vedlikehold (Weekly Maintenance):**
+
+1. ☐ **Kjør helsekontroll (Run health check)**
+   ```bash
+   cd /opt/youtube-viewer/app
+   ./scripts/check-health.sh
+   ```
+   - Verifiser ingen advarsler (Verify no warnings)
+   - Se gjennom resultater (Review results)
+
+2. ☐ **Verifiser backup finnes (Verify backups exist)**
+   ```bash
+   ls -lht /opt/youtube-viewer/backups/ | head -8
+   ```
+   - Sjekk at siste backup er <48 timer (Check last backup is <48 hours)
+   - Verifiser 7 dager med backups (Verify 7 days of backups)
+
+3. ☐ **Sjekk diskplass (Check disk space)**
+   ```bash
+   df -h /opt/youtube-viewer
+   ```
+   - Sørg for >20% ledig (Ensure >20% free)
+   - Hvis lav plass, se på backup-oppbevaring (If low, check backup retention)
+
+4. ☐ **Se gjennom feillogger (Review error logs)**
+   ```bash
+   journalctl -u youtube-viewer.service --since "7 days ago" | grep ERROR
+   ```
+   - Sjekk om det er gjentatte feil (Check for repeated errors)
+   - Undersøk uventede feilmeldinger (Investigate unexpected errors)
+
+### Expected Outcomes
+
+- **Health Check:** All checks pass with ✓ indicators, no red warnings
+- **Backups:** 7 backup files present, newest <48 hours old
+- **Disk Space:** <80% used (>20% free)
+- **Error Logs:** No unexpected errors, only normal operational logs
+
+### When to Take Action
+
+Take immediate action if:
+- Service is stopped (red ✗ in health check)
+- Disk space >80% used (yellow/red warning)
+- Database integrity check fails (red warning)
+- Last backup >48 hours old (yellow/red warning)
+- Repeated ERROR entries in logs (investigate cause)
+
+**Action Steps:**
+1. Document the issue (screenshot, log excerpt)
+2. Check service status: `sudo systemctl status youtube-viewer.service`
+3. Review recent changes (deployments, configuration)
+4. If database issue: Consider restore from backup
+5. If disk space issue: Check log sizes, backup retention
+6. Consult troubleshooting section or deployment team
+
+---
+
+## Troubleshooting
+
+### Backup Issues
+
+**Issue:** Backup fails with "Database file not found"
+
+**Solution:**
+```bash
+# Verify database exists
+ls -l /opt/youtube-viewer/data/app.db
+
+# Check environment variables
+echo $DB_PATH
+
+# Run backup with explicit path
+DB_PATH=/opt/youtube-viewer/data/app.db ./scripts/backup.sh
+```
+
+---
+
+**Issue:** Backup directory permission denied
+
+**Solution:**
+```bash
+# Check backup directory permissions
+ls -ld /opt/youtube-viewer/backups
+
+# Fix ownership if needed
+sudo chown youtube-viewer:youtube-viewer /opt/youtube-viewer/backups
+sudo chmod 700 /opt/youtube-viewer/backups
+```
+
+---
+
+**Issue:** Old backups not being deleted
+
+**Solution:**
+```bash
+# Manually clean old backups (>7 days)
+find /opt/youtube-viewer/backups/ -name "app-*.db" -mtime +7 -ls
+
+# Delete old backups
+find /opt/youtube-viewer/backups/ -name "app-*.db" -mtime +7 -delete
+```
+
+---
+
+### Restore Issues
+
+**Issue:** Restore fails with "Backup file not found"
+
+**Solution:**
+```bash
+# List available backups
+ls -1t /opt/youtube-viewer/backups/
+
+# Use full filename including extension
+sudo ./scripts/restore.sh app-20251112-020000.db
+```
+
+---
+
+**Issue:** Restore fails integrity check
+
+**Cause:** Backup file is corrupted
+
+**Solution:**
+```bash
+# Try previous backup
+sudo ./scripts/restore.sh app-20251111-020000.db
+
+# If all backups fail, investigate database corruption cause
+sqlite3 /opt/youtube-viewer/data/app.db "PRAGMA integrity_check;"
+```
+
+---
+
+**Issue:** Service won't start after restore
+
+**Solution:**
+```bash
+# Check service logs
+sudo journalctl -u youtube-viewer.service -n 50
+
+# Check database file permissions
+ls -l /opt/youtube-viewer/data/app.db
+
+# Should be: -rw------- youtube-viewer youtube-viewer
+sudo chmod 600 /opt/youtube-viewer/data/app.db
+sudo chown youtube-viewer:youtube-viewer /opt/youtube-viewer/data/app.db
+
+# Restart service
+sudo systemctl restart youtube-viewer.service
+```
+
+---
+
+### Health Check Issues
+
+**Issue:** Health check shows "journalctl not available"
+
+**Cause:** User not in systemd-journal group
+
+**Solution:**
+```bash
+# Add user to systemd-journal group
+sudo usermod -aG systemd-journal $USER
+
+# Logout and login for group membership to take effect
+```
+
+---
+
+**Issue:** Health check shows disk space warning but plenty of space available
+
+**Cause:** Checking wrong filesystem
+
+**Solution:**
+```bash
+# Check which filesystem is being monitored
+df -h /opt/youtube-viewer
+
+# Ensure DATA_DIR points to correct location
+DATA_DIR=/opt/youtube-viewer ./scripts/check-health.sh
+```
+
+---
+
+### Dashboard Issues
+
+**Issue:** Today's activity shows 0 videos despite actual viewing
+
+**Cause:** UTC date mismatch
+
+**Solution:**
+```bash
+# Check current UTC date
+date -u +"%Y-%m-%d"
+
+# Query watch_history manually
+sqlite3 /opt/youtube-viewer/data/app.db \
+  "SELECT COUNT(*) FROM watch_history WHERE DATE(watched_at) = DATE('now');"
+
+# Verify watched_at timestamps are in UTC
+sqlite3 /opt/youtube-viewer/data/app.db \
+  "SELECT watched_at FROM watch_history ORDER BY watched_at DESC LIMIT 5;"
+```
+
+---
+
+### Log Rotation Issues
+
+**Issue:** Logs not rotating
+
+**Solution:**
+```bash
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/youtube-viewer
+
+# Check logrotate status
+sudo cat /var/lib/logrotate/status | grep youtube-viewer
+
+# Force rotation manually
+sudo logrotate -f /etc/logrotate.d/youtube-viewer
+```
+
+---
+
+**Issue:** Application stops logging after rotation
+
+**Cause:** Application didn't reopen log file after rotation
+
+**Solution:**
+```bash
+# Logrotate postrotate script should reload service
+# Verify postrotate is configured in logrotate config
+
+# Manually reload service
+sudo systemctl reload youtube-viewer.service
+
+# Or restart if reload doesn't work
+sudo systemctl restart youtube-viewer.service
+```
+
+---
+
+## Best Practices
+
+### Backup Management
+
+- **Verify backups:** Periodically test restore procedure (monthly)
+- **Monitor backup timer:** Check timer status weekly
+- **Backup before changes:** Manual backup before major updates
+- **Off-site backups:** Consider copying backups off-server for disaster recovery
+
+**Manual Pre-Deployment Backup:**
+```bash
+# Run backup before deployment
+sudo systemctl start youtube-viewer-backup.service
+
+# Verify backup completed
+journalctl -u youtube-viewer-backup.service -n 20
+
+# List backups
+ls -lht /opt/youtube-viewer/backups/ | head -3
+```
+
+### Monitoring
+
+- **Regular health checks:** Run check-health.sh weekly
+- **Dashboard reviews:** Quick check via dashboard.sh daily or as needed
+- **Log monitoring:** Review error logs weekly
+- **Disk space:** Keep disk usage below 70% for safety margin
+
+### Log Management
+
+- **Structured logging:** JSON logs enable easy parsing and analysis
+- **Log rotation:** Automatic rotation prevents disk space issues
+- **Retention policy:** 7 days balances space and troubleshooting needs
+- **Log analysis:** Use jq for parsing JSON logs efficiently
+
+**Example Log Analysis:**
+```bash
+# Count errors by module
+tail -n 1000 /var/log/youtube-viewer/app.log | \
+  jq -r 'select(.level=="ERROR") | .module' | \
+  sort | uniq -c | sort -rn
+
+# Extract error messages
+tail -n 1000 /var/log/youtube-viewer/app.log | \
+  jq -r 'select(.level=="ERROR") | .message'
+
+# Find logs from specific function
+tail -n 1000 /var/log/youtube-viewer/app.log | \
+  jq 'select(.function=="health_check")'
+```
+
+---
+
+## Security Considerations
+
+- **Script permissions:** All scripts are 750 (owner+group execute only)
+- **Backup permissions:** 600 (owner read/write only) to protect database
+- **Log permissions:** 640 (owner read/write, group read) for monitoring
+- **Root requirements:** restore.sh requires root for systemctl operations
+- **Backup directory:** 700 permissions prevent unauthorized access
+
+---
+
+## Related Files
+
+**Scripts:**
+- `scripts/backup.sh` - Database backup automation
+- `scripts/restore.sh` - Database restore with verification
+- `scripts/check-health.sh` - Weekly health checks
+- `scripts/dashboard.sh` - Real-time system dashboard
+
+**Systemd:**
+- `scripts/systemd/youtube-viewer-backup.service` - Backup service unit
+- `scripts/systemd/youtube-viewer-backup.timer` - Backup timer unit
+
+**Configuration:**
+- `scripts/logrotate-youtube-viewer` - Log rotation config
+- `backend/logging_config.py` - JSON logging setup
+
+**Logs:**
+- `/var/log/youtube-viewer/app.log` - Application logs (JSON)
+- `/var/log/youtube-viewer/backups.log` - Backup operation logs
+- System logs via `journalctl -u youtube-viewer.service`
+
+**Documentation:**
+- `docs/stories/5.4.monitoring-maintenance-setup.md` - Story specification
+- `docs/architecture/monitoring-and-observability.md` - Architecture details
