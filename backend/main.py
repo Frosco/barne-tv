@@ -158,6 +158,11 @@ PUBLIC_DIR = Path(__file__).parent.parent / "frontend" / "public"
 if PUBLIC_DIR.exists():
     app.mount("/images", StaticFiles(directory=str(PUBLIC_DIR / "images")), name="images")
 
+# Mount docs directory (for operations guide - Story 5.5)
+DOCS_DIR = Path(__file__).parent.parent / "docs"
+if DOCS_DIR.exists():
+    app.mount("/docs", StaticFiles(directory=str(DOCS_DIR)), name="docs")
+
 # Include API routes
 app.include_router(router)
 

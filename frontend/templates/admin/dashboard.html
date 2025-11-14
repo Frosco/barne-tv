@@ -1,8 +1,5 @@
-{% extends "base.html" %}
-
-{% block title %}Dashboard - Admin{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Dashboard - Admin{% endblock %} {%
+block content %}
 <div class="admin-container">
   <header class="admin-header">
     <div class="header-content">
@@ -11,7 +8,12 @@
         <p class="admin-subtitle">Velkommen til administrasjonsportalen</p>
       </div>
       <div class="header-actions">
-        <a href="#" class="help-link" onclick="event.preventDefault(); alert('Se docs/getting-started-no.md for full veiledning'); return false;" aria-label="Åpne dokumentasjon">
+        <a
+          href="#"
+          class="help-link"
+          onclick="event.preventDefault(); alert('Se docs/getting-started-no.md for full veiledning'); return false;"
+          aria-label="Åpne dokumentasjon"
+        >
           📖 Kom i gang
         </a>
       </div>
@@ -20,14 +22,18 @@
 
   <section class="dashboard-section">
     <h2 class="section-title">Administrasjon</h2>
-    <span class="help-text" style="display: block; margin-bottom: 1rem;">
-      Oversikt over administrasjonsfunksjoner. Bruk Kanaler for å legge til innhold, Historikk for å se hva barnet har sett, og Innstillinger for å justere daglige grenser.
+    <span class="help-text" style="display: block; margin-bottom: 1rem">
+      Oversikt over administrasjonsfunksjoner. Bruk Kanaler for å legge til
+      innhold, Historikk for å se hva barnet har sett, og Innstillinger for å
+      justere daglige grenser.
     </span>
     <div class="dashboard-cards">
       <a href="/admin/channels" class="dashboard-card">
         <div class="card-icon">📺</div>
         <h3 class="card-title">Kanaler</h3>
-        <p class="card-description">Administrer YouTube-kanaler og spillelister</p>
+        <p class="card-description">
+          Administrer YouTube-kanaler og spillelister
+        </p>
       </a>
 
       <a href="/admin/history" class="dashboard-card">
@@ -39,13 +45,29 @@
       <a href="/admin/settings" class="dashboard-card">
         <div class="card-icon">⚙️</div>
         <h3 class="card-title">Innstillinger</h3>
-        <p class="card-description">Konfigurer daglige grenser og innstillinger</p>
+        <p class="card-description">
+          Konfigurer daglige grenser og innstillinger
+        </p>
+      </a>
+
+      <a
+        href="/docs/operations-guide-no.md"
+        class="dashboard-card"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <div class="card-icon">📚</div>
+        <h3 class="card-title">Driftshåndbok</h3>
+        <p class="card-description">Veiledning for drift og vedlikehold</p>
       </a>
     </div>
   </section>
 
   <!-- Daily Limit Status (Story 4.1, Task 5) -->
-  <section class="dashboard-section limit-status-section" aria-labelledby="limit-status-title">
+  <section
+    class="dashboard-section limit-status-section"
+    aria-labelledby="limit-status-title"
+  >
     <h2 id="limit-status-title" class="section-title">Daglig grense</h2>
     <div class="limit-status" id="limit-status-container" aria-live="polite">
       <div class="limit-status__loading">
@@ -76,84 +98,86 @@
 </script>
 
 <style>
-/* Header with documentation link */
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-lg);
-}
-
-.header-text {
-  flex: 1;
-}
-
-.header-actions {
-  display: flex;
-  gap: var(--space-md);
-}
-
-.dashboard-section {
-  background: white;
-  padding: var(--space-xl);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  margin-bottom: var(--space-xl);
-}
-
-@media (max-width: 768px) {
+  /* Header with documentation link */
   .header-content {
-    flex-direction: column;
-    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-lg);
   }
-}
 
-.dashboard-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--space-lg);
-  margin-top: var(--space-lg);
-}
+  .header-text {
+    flex: 1;
+  }
 
-.dashboard-card {
-  background: var(--color-light-gray);
-  border-radius: var(--radius-md);
-  padding: var(--space-xl);
-  text-decoration: none;
-  color: inherit;
-  transition: transform 0.2s, box-shadow 0.2s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
+  .header-actions {
+    display: flex;
+    gap: var(--space-md);
+  }
 
-.dashboard-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-md);
-}
+  .dashboard-section {
+    background: white;
+    padding: var(--space-xl);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    margin-bottom: var(--space-xl);
+  }
 
-.card-icon {
-  font-size: 48px;
-  margin-bottom: var(--space-md);
-}
+  @media (max-width: 768px) {
+    .header-content {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
 
-.card-title {
-  font-size: var(--font-size-heading);
-  font-weight: 600;
-  margin-bottom: var(--space-sm);
-  color: var(--color-charcoal-text);
-}
+  .dashboard-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--space-lg);
+    margin-top: var(--space-lg);
+  }
 
-.card-description {
-  font-size: var(--font-size-body);
-  color: var(--color-neutral-gray);
-}
+  .dashboard-card {
+    background: var(--color-light-gray);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    text-decoration: none;
+    color: inherit;
+    transition:
+      transform 0.2s,
+      box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
 
-.dashboard-actions {
-  display: flex;
-  gap: var(--space-md);
-  justify-content: center;
-}
+  .dashboard-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .card-icon {
+    font-size: 48px;
+    margin-bottom: var(--space-md);
+  }
+
+  .card-title {
+    font-size: var(--font-size-heading);
+    font-weight: 600;
+    margin-bottom: var(--space-sm);
+    color: var(--color-charcoal-text);
+  }
+
+  .card-description {
+    font-size: var(--font-size-body);
+    color: var(--color-neutral-gray);
+  }
+
+  .dashboard-actions {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: center;
+  }
 </style>
 {% endblock %}
