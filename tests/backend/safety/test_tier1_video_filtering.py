@@ -16,7 +16,7 @@ import pytest
 
 
 @pytest.mark.tier1
-def test_rule1_banned_videos_never_appear_in_grid(test_db):
+def test_rule1_banned_videos_never_appear_in_grid(test_db_with_patch):
     """
     TIER 1 Rule 1: Banned videos must NEVER appear in video grid.
 
@@ -93,7 +93,7 @@ def test_rule1_banned_videos_never_appear_in_grid(test_db):
 
 
 @pytest.mark.tier1
-def test_rule1_unavailable_videos_never_appear_in_grid(test_db):
+def test_rule1_unavailable_videos_never_appear_in_grid(test_db_with_patch):
     """
     TIER 1 Rule 1: Unavailable videos must NEVER appear in video grid.
 
