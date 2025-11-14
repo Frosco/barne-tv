@@ -12,7 +12,7 @@ from fastapi import APIRouter, Request, Response, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from googleapiclient.errors import HttpError
+from googleapiclient.errors import HttpError  # type: ignore[import-untyped]
 
 from backend.auth import (
     create_session,

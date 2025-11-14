@@ -19,9 +19,9 @@ import logging
 import time
 from datetime import datetime, timezone
 
-import isodate
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+import isodate  # type: ignore[import-untyped]
+from googleapiclient.discovery import build  # type: ignore[import-untyped]
+from googleapiclient.errors import HttpError  # type: ignore[import-untyped]
 
 from backend.config import YOUTUBE_API_KEY
 from backend.db.queries import (

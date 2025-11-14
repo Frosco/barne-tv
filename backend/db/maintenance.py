@@ -24,7 +24,7 @@ def cleanup_old_history(days_to_keep: int = 90) -> int:
 
     with get_connection() as conn:
         cursor = conn.execute(query, (f"-{days_to_keep} days",))
-        count = cursor.rowcount
+        count = int(cursor.rowcount)
 
     logger.info(f"Deleted {count} old watch history entries")
     return count
@@ -44,7 +44,7 @@ def cleanup_old_api_logs(days_to_keep: int = 30) -> int:
 
     with get_connection() as conn:
         cursor = conn.execute(query, (f"-{days_to_keep} days",))
-        count = cursor.rowcount
+        count = int(cursor.rowcount)
 
     logger.info(f"Deleted {count} old API log entries")
     return count

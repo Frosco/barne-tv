@@ -587,7 +587,7 @@ def check_grace_consumed(date: str, conn=None) -> bool:
         with get_connection() as conn:
             result = conn.execute(query, (date,)).fetchone()
 
-    return result["count"] > 0
+    return bool(result["count"] > 0)
 
 
 # =============================================================================
@@ -624,13 +624,13 @@ def get_setting(key: str, conn=None) -> str:
         result = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         if result is None:
             raise KeyError(f"Setting '{key}' not found")
-        return result[0]
+        return str(result[0])
     else:
         with get_connection() as conn:
             result = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
             if result is None:
                 raise KeyError(f"Setting '{key}' not found")
-            return result[0]
+            return str(result[0])
 
 
 def set_setting(key: str, value: str) -> None:
@@ -792,7 +792,7 @@ def update_video_availability(video_id: str, is_available: bool = False) -> int:
             "UPDATE videos SET is_available = ? WHERE video_id = ?",
             (int(is_available), video_id),
         )
-        return cursor.rowcount
+        return int(cursor.rowcount)
 
 
 # =============================================================================
@@ -835,12 +835,12 @@ def delete_todays_countable_history(date: str, conn=None) -> int:
     if conn is not None:
         # For testing: use provided connection
         cursor = conn.execute(query, (date,))
-        return cursor.rowcount
+        return int(cursor.rowcount)
     else:
         # TIER 2 Rule 7: Always use context manager for production
         with get_connection() as conn:
             cursor = conn.execute(query, (date,))
-            return cursor.rowcount
+            return int(cursor.rowcount)
 
 
 def delete_engagement_history(video_id: str | None = None, conn=None) -> int:
@@ -893,12 +893,12 @@ def delete_engagement_history(video_id: str | None = None, conn=None) -> int:
     if conn is not None:
         # For testing: use provided connection
         cursor = conn.execute(query, params) if params else conn.execute(query)
-        return cursor.rowcount
+        return int(cursor.rowcount)
     else:
         # TIER 2 Rule 7: Always use context manager for production
         with get_connection() as conn:
             cursor = conn.execute(query, params) if params else conn.execute(query)
-            return cursor.rowcount
+            return int(cursor.rowcount)
 
 
 # =============================================================================
