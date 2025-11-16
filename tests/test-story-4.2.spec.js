@@ -20,7 +20,7 @@ test.describe('Story 4.2 - Progressive Warnings & Wind-down Mode', () => {
   });
 
   test('1. Child interface loads successfully', async ({ page }) => {
-    await page.goto(`${BASE_URL}/child/grid`);
+    await page.goto(`${BASE_URL}/`);
     await page.waitForLoadState('networkidle');
 
     // Check page loaded
@@ -29,7 +29,7 @@ test.describe('Story 4.2 - Progressive Warnings & Wind-down Mode', () => {
   });
 
   test('2. Warning display elements exist in DOM', async ({ page }) => {
-    await page.goto(`${BASE_URL}/child/grid`);
+    await page.goto(`${BASE_URL}/`);
     await page.waitForLoadState('networkidle');
 
     // Check if warning overlay exists (may be hidden initially)
@@ -120,7 +120,7 @@ test.describe('Story 4.2 - Progressive Warnings & Wind-down Mode', () => {
   });
 
   test('7. Test warning display via console manipulation', async ({ page }) => {
-    await page.goto(`${BASE_URL}/child/grid`);
+    await page.goto(`${BASE_URL}/`);
     await page.waitForLoadState('networkidle');
 
     // Wait for child.js to initialize
@@ -156,7 +156,7 @@ test.describe('Story 4.2 - Progressive Warnings & Wind-down Mode', () => {
   });
 
   test('8. Check CSS classes for wind-down mode', async ({ page }) => {
-    await page.goto(`${BASE_URL}/child/grid`);
+    await page.goto(`${BASE_URL}/`);
     await page.waitForLoadState('networkidle');
 
     // Check if video-grid exists

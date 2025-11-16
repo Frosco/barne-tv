@@ -13,7 +13,7 @@
  * @returns {Promise<void>}
  */
 export async function navigateToGrid(page) {
-  await page.goto('/child/grid');
+  await page.goto('/');
 }
 
 /**

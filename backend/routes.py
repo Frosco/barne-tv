@@ -663,7 +663,7 @@ def refresh_source(request: Request, response: Response, source_id: int):
 # =============================================================================
 
 
-@router.get("/child/grid", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse)
 @limiter.limit("100/minute")
 def child_grid_page(request: Request, response: Response):
     """

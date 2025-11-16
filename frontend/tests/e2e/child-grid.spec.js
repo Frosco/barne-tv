@@ -671,7 +671,7 @@ test.describe('User Interaction', () => {
    */
   test('2.1-E2E-005: Cards disabled during loading state', async ({ page }) => {
     // Step 1: Navigate to grid
-    await page.goto('/child/grid');
+    await page.goto('/');
 
     // Step 2: Check if loading indicator is visible initially
     const loadingIndicator = page.locator('[data-loading]');
