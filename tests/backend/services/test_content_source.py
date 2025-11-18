@@ -511,6 +511,115 @@ def test_parse_input_strips_whitespace():
 
 
 # =============================================================================
+# _resolve_handle_to_channel_id() Tests
+# =============================================================================
+
+
+@pytest.mark.tier1
+def test_resolve_handle_to_channel_id_success(monkeypatch):
+    """
+    Test _resolve_handle_to_channel_id() resolves handle to channel ID.
+
+    TIER 1 Safety Test - Handle resolution is critical for @handle URL support.
+    """
+    from backend.services.content_source import _resolve_handle_to_channel_id
+
+    # Arrange - Mock YouTube API response for channels().list(forHandle=...)
+    mock_youtube = Mock()
+    mock_channels = Mock()
+    mock_list = Mock()
+
+    # Mock API response with channel ID
+    mock_list.execute.return_value = {
+        "items": [
+            {
+                "id": "UCrwObTfqv8u1KO7Fgk-FXHQ"
+            }
+        ]
+    }
+
+    mock_list.return_value = mock_list
+    mock_channels.list.return_value = mock_list
+    mock_youtube.channels.return_value = mock_channels
+
+    # Act
+    channel_id = _resolve_handle_to_channel_id(mock_youtube, "Blippi")
+
+    # Assert
+    assert channel_id == "UCrwObTfqv8u1KO7Fgk-FXHQ"
+    mock_channels.list.assert_called_once_with(
+        forHandle="Blippi",
+        part="id",
+        maxResults=1
+    )
+
+
+@pytest.mark.tier1
+def test_resolve_handle_to_channel_id_not_found(monkeypatch):
+    """
+    Test _resolve_handle_to_channel_id() raises error when handle not found.
+
+    TIER 1 Safety Test - Error handling for invalid handles.
+    """
+    from backend.services.content_source import _resolve_handle_to_channel_id
+
+    # Arrange - Mock YouTube API response with no items
+    mock_youtube = Mock()
+    mock_channels = Mock()
+    mock_list = Mock()
+
+    mock_list.execute.return_value = {"items": []}
+
+    mock_list.return_value = mock_list
+    mock_channels.list.return_value = mock_list
+    mock_youtube.channels.return_value = mock_channels
+
+    # Act & Assert
+    with pytest.raises(ValueError) as exc_info:
+        _resolve_handle_to_channel_id(mock_youtube, "NonExistentHandle")
+
+    # Verify Norwegian message
+    assert "Kanal ikke funnet" in str(exc_info.value)
+
+
+@pytest.mark.tier1
+def test_resolve_handle_to_channel_id_logs_api_call(monkeypatch, test_db):
+    """
+    Test _resolve_handle_to_channel_id() logs API call for quota tracking.
+
+    TIER 1 Safety Test - Quota tracking is critical.
+    """
+    from backend.services.content_source import _resolve_handle_to_channel_id
+
+    # Arrange - Mock YouTube API and log_api_call
+    mock_youtube = Mock()
+    mock_channels = Mock()
+    mock_list = Mock()
+
+    mock_list.execute.return_value = {
+        "items": [{"id": "UCrwObTfqv8u1KO7Fgk-FXHQ"}]
+    }
+
+    mock_list.return_value = mock_list
+    mock_channels.list.return_value = mock_list
+    mock_youtube.channels.return_value = mock_channels
+
+    # Mock log_api_call to track calls
+    log_calls = []
+    def mock_log_api_call(operation, quota_cost, success, error=None):
+        log_calls.append((operation, quota_cost, success))
+
+    monkeypatch.setattr("backend.services.content_source.log_api_call", mock_log_api_call)
+
+    # Act
+    _resolve_handle_to_channel_id(mock_youtube, "Blippi")
+
+    # Assert
+    assert len(log_calls) == 1
+    assert log_calls[0] == ("youtube_channels_forHandle", 1, True)
+
+
+# =============================================================================
 # _fetch_video_details() Tests (Story 1.3)
 # =============================================================================
 

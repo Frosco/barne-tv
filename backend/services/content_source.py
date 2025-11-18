@@ -228,6 +228,70 @@ def _parse_input(input: str) -> tuple[str, str]:
     )
 
 
+def _resolve_handle_to_channel_id(youtube, handle: str) -> str:
+    """
+    Resolve YouTube handle (@username) to channel ID.
+
+    YouTube handles (like @Blippi) cannot be used directly in search().list()
+    API calls which expect channel IDs (UC...). This function resolves the
+    handle to the actual channel ID using the channels().list() API with
+    the forHandle parameter (added to YouTube API in January 2024).
+
+    Args:
+        youtube: YouTube API client
+        handle: YouTube handle without @ symbol (e.g., "Blippi", "DerElefant")
+
+    Returns:
+        Channel ID string (e.g., "UCrwObTfqv8u1KO7Fgk-FXHQ")
+
+    Raises:
+        ValueError: If handle does not resolve to a channel (Norwegian message)
+        HttpError: If YouTube API request fails
+
+    TIER 1 Rules Applied:
+    - Rule 5: Input validation for handle
+    - Rule 6: API responses validated before use
+
+    Example:
+        >>> youtube = create_youtube_client()
+        >>> channel_id = _resolve_handle_to_channel_id(youtube, "Blippi")
+        >>> print(channel_id)
+        UCrwObTfqv8u1KO7Fgk-FXHQ
+    """
+    # TIER 1 Rule 5: Validate input
+    if not handle or not isinstance(handle, str):
+        raise ValueError("Handle må være en gyldig tekststreng")
+
+    logger.info(f"Resolving handle to channel ID: {handle}")
+
+    try:
+        # Call YouTube API to resolve handle to channel ID
+        # forHandle parameter added in January 2024
+        response = youtube.channels().list(forHandle=handle, part="id", maxResults=1).execute()
+
+        # Log API call for quota tracking (1 quota unit)
+        log_api_call("youtube_channels_forHandle", 1, True)
+
+        # TIER 1 Rule 6: Validate API response
+        items = response.get("items", [])
+        if not items:
+            logger.warning(f"Handle not found: {handle}")
+            raise ValueError(f"Kanal ikke funnet for handle: @{handle}")
+
+        channel_id = items[0]["id"]
+        logger.info(f"Resolved handle {handle} to channel ID: {channel_id}")
+
+        return channel_id
+
+    except HttpError as e:
+        # Log failed API call
+        log_api_call("youtube_channels_forHandle", 1, False, str(e))
+
+        # Re-raise for upstream handling
+        logger.error(f"Failed to resolve handle {handle}: {e}")
+        raise
+
+
 def fetch_videos_with_retry(
     youtube, channel_id: str, page_token: str | None, max_retries: int = 3
 ) -> tuple[list[str], str | None, bool]:
@@ -772,13 +836,23 @@ def add_source(source_input: str) -> dict:
         logger.warning(f"Source {source_id} already exists: {existing_source['name']}")
         raise ValueError(f"Denne {source_type}en er allerede lagt til: {existing_source['name']}")
 
-    # Step 3: Fetch video IDs based on source type
-    logger.info(f"Fetching video IDs for {source_type} {source_id}...")
+    # Step 3: Resolve handle to channel ID if needed
+    # Handles (from @username URLs) need to be resolved to channel IDs
+    # before calling search API. Channel IDs start with "UC", handles don't.
+    resolved_source_id = source_id
+    if source_type == "channel" and not source_id.startswith("UC"):
+        logger.info(f"Source ID appears to be a handle: {source_id}. Resolving to channel ID...")
+        youtube = create_youtube_client()
+        resolved_source_id = _resolve_handle_to_channel_id(youtube, source_id)
+        logger.info(f"Resolved handle {source_id} to channel ID: {resolved_source_id}")
+
+    # Step 4: Fetch video IDs based on source type
+    logger.info(f"Fetching video IDs for {source_type} {resolved_source_id}...")
     fetch_complete = True  # Track if fetch completed successfully
 
     if source_type == "channel":
         youtube = create_youtube_client()
-        video_ids, fetch_complete = fetch_all_channel_videos(youtube, source_id)
+        video_ids, fetch_complete = fetch_all_channel_videos(youtube, resolved_source_id)
     elif source_type == "playlist":
         video_ids, fetch_complete = _fetch_playlist_videos(source_id)
     else:
@@ -1035,13 +1109,24 @@ def refresh_source(source_id: int) -> dict:
 
     logger.info(f"Refreshing source {source_id} ({source['name']})")
 
-    # Step 2: Fetch video IDs based on source type
+    # Step 2: Resolve handle to channel ID if needed (same as add_source)
     source_type = source["source_type"]
     youtube_source_id = source["source_id"]
 
+    # Handles (from @username URLs) need to be resolved to channel IDs
+    resolved_source_id = youtube_source_id
+    if source_type == "channel" and not youtube_source_id.startswith("UC"):
+        logger.info(
+            f"Source ID appears to be a handle: {youtube_source_id}. Resolving to channel ID..."
+        )
+        youtube = create_youtube_client()
+        resolved_source_id = _resolve_handle_to_channel_id(youtube, youtube_source_id)
+        logger.info(f"Resolved handle {youtube_source_id} to channel ID: {resolved_source_id}")
+
+    # Step 3: Fetch video IDs based on source type
     if source_type == "channel":
         youtube = create_youtube_client()
-        video_ids, fetch_complete = fetch_all_channel_videos(youtube, youtube_source_id)
+        video_ids, fetch_complete = fetch_all_channel_videos(youtube, resolved_source_id)
     elif source_type == "playlist":
         video_ids, fetch_complete = _fetch_playlist_videos(youtube_source_id)
     else:
