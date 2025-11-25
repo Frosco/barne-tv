@@ -685,12 +685,22 @@ def _fetch_video_details(video_ids: list[str]) -> list[dict]:
                     duration_timedelta = isodate.parse_duration(duration_str)
                     duration_seconds = int(duration_timedelta.total_seconds())
 
+                    # Select best available thumbnail (prefer high > medium > default)
+                    # high: 480x360, medium: 320x180, default: 120x90
+                    thumbnails = snippet["thumbnails"]
+                    if "high" in thumbnails:
+                        thumbnail_url = thumbnails["high"]["url"]
+                    elif "medium" in thumbnails:
+                        thumbnail_url = thumbnails["medium"]["url"]
+                    else:
+                        thumbnail_url = thumbnails["default"]["url"]
+
                     video = {
                         "video_id": item["id"],
                         "title": snippet["title"],
                         "youtube_channel_id": snippet["channelId"],
                         "youtube_channel_name": snippet["channelTitle"],
-                        "thumbnail_url": snippet["thumbnails"]["default"]["url"],
+                        "thumbnail_url": thumbnail_url,
                         "duration_seconds": duration_seconds,
                         "published_at": snippet["publishedAt"],
                         "fetched_at": fetched_at,

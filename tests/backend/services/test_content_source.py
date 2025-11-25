@@ -530,13 +530,7 @@ def test_resolve_handle_to_channel_id_success(monkeypatch):
     mock_list = Mock()
 
     # Mock API response with channel ID
-    mock_list.execute.return_value = {
-        "items": [
-            {
-                "id": "UCrwObTfqv8u1KO7Fgk-FXHQ"
-            }
-        ]
-    }
+    mock_list.execute.return_value = {"items": [{"id": "UCrwObTfqv8u1KO7Fgk-FXHQ"}]}
 
     mock_list.return_value = mock_list
     mock_channels.list.return_value = mock_list
@@ -547,11 +541,7 @@ def test_resolve_handle_to_channel_id_success(monkeypatch):
 
     # Assert
     assert channel_id == "UCrwObTfqv8u1KO7Fgk-FXHQ"
-    mock_channels.list.assert_called_once_with(
-        forHandle="Blippi",
-        part="id",
-        maxResults=1
-    )
+    mock_channels.list.assert_called_once_with(forHandle="Blippi", part="id", maxResults=1)
 
 
 @pytest.mark.tier1
@@ -596,9 +586,7 @@ def test_resolve_handle_to_channel_id_logs_api_call(monkeypatch, test_db):
     mock_channels = Mock()
     mock_list = Mock()
 
-    mock_list.execute.return_value = {
-        "items": [{"id": "UCrwObTfqv8u1KO7Fgk-FXHQ"}]
-    }
+    mock_list.execute.return_value = {"items": [{"id": "UCrwObTfqv8u1KO7Fgk-FXHQ"}]}
 
     mock_list.return_value = mock_list
     mock_channels.list.return_value = mock_list
@@ -606,6 +594,7 @@ def test_resolve_handle_to_channel_id_logs_api_call(monkeypatch, test_db):
 
     # Mock log_api_call to track calls
     log_calls = []
+
     def mock_log_api_call(operation, quota_cost, success, error=None):
         log_calls.append((operation, quota_cost, success))
 
