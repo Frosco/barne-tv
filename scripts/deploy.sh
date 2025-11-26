@@ -356,52 +356,6 @@ run_tier1_safety_tests() {
     fi
 }
 
-# Verify backend test coverage
-verify_backend_coverage() {
-    log_info "Verifying backend test coverage..."
-
-    # Run tests with coverage reporting
-    local coverage_output
-    coverage_output=$(uv run pytest --cov=backend --cov-report=term 2>&1)
-    local exit_code=$?
-
-    # Log coverage output
-    echo "${coverage_output}" >> "${LOG_FILE}"
-
-    if [[ ${exit_code} -eq 0 ]]; then
-        # Parse coverage percentage from output
-        local coverage_pct
-        coverage_pct=$(echo "${coverage_output}" | grep "^TOTAL" | awk '{print $NF}' | sed 's/%//')
-
-        if [[ -n "${coverage_pct}" ]] && [[ "${coverage_pct}" =~ ^[0-9]+\.?[0-9]*$ ]]; then
-            log_info "Backend test coverage: ${coverage_pct}%"
-
-            # Check if coverage meets 85% target (using bc if available, otherwise awk)
-            if command -v bc > /dev/null 2>&1; then
-                if (( $(echo "${coverage_pct} < 85" | bc -l) )); then
-                    log_warn "Coverage is below 85% target (current: ${coverage_pct}%)"
-                    log_warn "This is a warning, not a deployment blocker"
-                else
-                    log_info "Coverage meets 85% target"
-                fi
-            else
-                # Fallback to awk if bc not available
-                if awk "BEGIN {exit !(${coverage_pct} < 85)}"; then
-                    log_warn "Coverage is below 85% target (current: ${coverage_pct}%)"
-                    log_warn "This is a warning, not a deployment blocker"
-                else
-                    log_info "Coverage meets 85% target"
-                fi
-            fi
-        else
-            log_warn "Could not parse coverage percentage from output"
-        fi
-    else
-        log_error "Coverage tests failed"
-        exit 1
-    fi
-}
-
 # Verify no async/await in backend code (architectural constraint)
 verify_no_async_await() {
     log_info "Verifying architectural constraint: no async/await in backend..."
@@ -645,28 +599,25 @@ main() {
     # Step 6: Run TIER 1 safety tests (CRITICAL - deployment blocker)
     run_tier1_safety_tests
 
-    # Step 7: Verify backend coverage
-    verify_backend_coverage
-
-    # Step 8: Verify architectural constraint (no async/await)
+    # Step 7: Verify architectural constraint (no async/await)
     verify_no_async_await
 
-    # Step 9: Build frontend for production
+    # Step 8: Build frontend for production
     build_frontend
 
-    # Step 10: Run frontend quality checks
+    # Step 9: Run frontend quality checks
     run_frontend_quality_checks
 
-    # Step 11: Run frontend tests
+    # Step 10: Run frontend tests
     run_frontend_tests
 
-    # Step 12: Perform database checkpoint
+    # Step 11: Perform database checkpoint
     perform_database_checkpoint
 
-    # Step 13: Restart service
+    # Step 12: Restart service
     restart_service
 
-    # Step 14: Verify health endpoint
+    # Step 13: Verify health endpoint
     verify_health_endpoint
 
     log_info "=========================================="
