@@ -64,3 +64,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["isodate", "googleapiclient.*"]
+ignore_missing_imports = true
