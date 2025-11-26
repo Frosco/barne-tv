@@ -33,10 +33,13 @@ def test_allowed_hosts_parsing_valid_comma_separated(monkeypatch):
 
     # Verify parsing
     assert isinstance(backend.config.ALLOWED_HOSTS, list)
-    assert len(backend.config.ALLOWED_HOSTS) == 3
+    # When TESTING=true, "testserver" is added for TestClient compatibility
     assert "example.com" in backend.config.ALLOWED_HOSTS
     assert "www.example.com" in backend.config.ALLOWED_HOSTS
     assert "api.example.com" in backend.config.ALLOWED_HOSTS
+    # Count is 3 hosts + testserver (if TESTING=true)
+    expected_count = 4 if backend.config.TESTING else 3
+    assert len(backend.config.ALLOWED_HOSTS) == expected_count
 
 
 @pytest.mark.security
@@ -109,10 +112,12 @@ def test_allowed_hosts_malformed_values_with_spaces(monkeypatch):
 
     # Whitespace is correctly stripped from each host
     assert isinstance(backend.config.ALLOWED_HOSTS, list)
-    assert len(backend.config.ALLOWED_HOSTS) == 3
     assert "example.com" in backend.config.ALLOWED_HOSTS
     assert "www.example.com" in backend.config.ALLOWED_HOSTS
     assert "api.example.com" in backend.config.ALLOWED_HOSTS
+    # Count is 3 hosts + testserver (if TESTING=true)
+    expected_count = 4 if backend.config.TESTING else 3
+    assert len(backend.config.ALLOWED_HOSTS) == expected_count
     # Verify no hosts with whitespace remain
     assert not any(" " in host for host in backend.config.ALLOWED_HOSTS)
 
@@ -135,9 +140,11 @@ def test_allowed_hosts_malformed_values_with_trailing_comma(monkeypatch):
 
     # Trailing comma is filtered out - only valid hosts remain
     assert isinstance(backend.config.ALLOWED_HOSTS, list)
-    assert len(backend.config.ALLOWED_HOSTS) == 2
     assert "example.com" in backend.config.ALLOWED_HOSTS
     assert "www.example.com" in backend.config.ALLOWED_HOSTS
+    # Count is 2 hosts + testserver (if TESTING=true)
+    expected_count = 3 if backend.config.TESTING else 2
+    assert len(backend.config.ALLOWED_HOSTS) == expected_count
 
 
 @pytest.mark.security

@@ -46,6 +46,11 @@ def parse_allowed_hosts(env_value: str | None, default: str = "localhost,127.0.0
 
 ALLOWED_HOSTS = parse_allowed_hosts(os.getenv("ALLOWED_HOSTS"))
 
+# Add "testserver" for FastAPI TestClient compatibility when testing
+TESTING = os.getenv("TESTING", "false").lower() == "true"
+if TESTING and "testserver" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ALLOWED_HOSTS + ["testserver"]
+
 # Environment
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = ENVIRONMENT == "development"
