@@ -240,7 +240,6 @@ def test_complete_playback_flow_watch_logging_grid_fetch_render(test_client, tes
     # Assert Step 4: Some videos are different (novelty algorithm)
     # The watched video should be deprioritized due to recency penalty
     # With 50 videos available, we expect significant variety
-    overlap = grid1_video_ids & grid2_video_ids
     new_videos = grid2_video_ids - grid1_video_ids
 
     # At least 3 new videos should appear (algorithm provides ~60-80% novelty)

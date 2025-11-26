@@ -19,9 +19,9 @@ import logging
 import time
 from datetime import datetime, timezone
 
-import isodate  # type: ignore[import-untyped]
-from googleapiclient.discovery import build  # type: ignore[import-untyped]
-from googleapiclient.errors import HttpError  # type: ignore[import-untyped]
+import isodate
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from backend.config import YOUTUBE_API_KEY
 from backend.db.queries import (
@@ -278,7 +278,7 @@ def _resolve_handle_to_channel_id(youtube, handle: str) -> str:
             logger.warning(f"Handle not found: {handle}")
             raise ValueError(f"Kanal ikke funnet for handle: @{handle}")
 
-        channel_id = items[0]["id"]
+        channel_id: str = items[0]["id"]
         logger.info(f"Resolved handle {handle} to channel ID: {channel_id}")
 
         return channel_id
