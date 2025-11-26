@@ -516,7 +516,7 @@ def test_parse_input_strips_whitespace():
 
 
 @pytest.mark.tier1
-def test_resolve_handle_to_channel_id_success(monkeypatch, test_db):
+def test_resolve_handle_to_channel_id_success(monkeypatch, test_db_with_patch):
     """
     Test _resolve_handle_to_channel_id() resolves handle to channel ID.
 
@@ -545,7 +545,7 @@ def test_resolve_handle_to_channel_id_success(monkeypatch, test_db):
 
 
 @pytest.mark.tier1
-def test_resolve_handle_to_channel_id_not_found(monkeypatch, test_db):
+def test_resolve_handle_to_channel_id_not_found(monkeypatch, test_db_with_patch):
     """
     Test _resolve_handle_to_channel_id() raises error when handle not found.
 
