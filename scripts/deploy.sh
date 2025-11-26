@@ -361,6 +361,10 @@ verify_no_async_await() {
     log_info "Verifying architectural constraint: no async/await in backend..."
 
     # Search for async/await patterns in backend code (exclude tests and common non-production directories)
+    # NOTE: main.py is excluded because FastAPI requires async for:
+    #   - lifespan context manager (startup/shutdown events)
+    #   - HTTP middleware (async def + await call_next pattern)
+    # Business logic (services, routes, db queries) must remain synchronous.
     local async_matches
     async_matches=$(grep -r "async def\|await " backend/ \
         --exclude-dir=__pycache__ \
@@ -368,11 +372,13 @@ verify_no_async_await() {
         --exclude-dir=.venv \
         --exclude-dir=.mypy_cache \
         --exclude="*.pyc" \
+        --exclude="main.py" \
         2>/dev/null || true)
 
     if [[ -n "${async_matches}" ]]; then
         log_error "ARCHITECTURAL VIOLATION: async/await detected in backend code"
         log_error "Backend must be 100% synchronous (no async/await allowed)"
+        log_error "Note: main.py is excluded (FastAPI framework requires async for lifespan/middleware)"
         log_error "Files with violations:"
         echo "${async_matches}" | while read -r line; do
             log_error "  ${line}"
@@ -380,6 +386,7 @@ verify_no_async_await() {
         exit 1
     else
         log_info "Architectural constraint verified: no async/await found in backend"
+        log_info "(main.py excluded - FastAPI requires async for lifespan/middleware)"
     fi
 }
 
