@@ -48,8 +48,8 @@ def test_db_file(tmp_path, monkeypatch):
 
 @pytest.fixture
 def client():
-    """Create FastAPI test client."""
-    return TestClient(app)
+    """Create FastAPI test client with localhost base_url for TrustedHostMiddleware."""
+    return TestClient(app, base_url="http://localhost")
 
 
 @pytest.fixture
@@ -732,23 +732,35 @@ def setup_videos_for_grid(test_db_file):
     Setup test videos and watch history for grid tests.
 
     Creates:
-    - 20 available videos
+    - 20 available videos from 5 channels (algorithm has max 3 per channel constraint)
     - 5 videos in recent watch history (last 7 days)
     - Daily limit settings
     """
     conn = sqlite3.connect(test_db_file)
 
-    # Add content source
-    conn.execute(
-        """INSERT INTO content_sources
-           (source_id, source_type, name, video_count, last_refresh, fetch_method, added_at)
-           VALUES (?, ?, ?, ?, datetime('now'), ?, datetime('now'))""",
-        ("UCtest123", "channel", "Test Channel", 20, "api"),
-    )
-    source_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    # Add 5 content sources (channels) to satisfy max 3 per channel constraint
+    channels = [
+        ("UCtest1", "Test Channel 1"),
+        ("UCtest2", "Test Channel 2"),
+        ("UCtest3", "Test Channel 3"),
+        ("UCtest4", "Test Channel 4"),
+        ("UCtest5", "Test Channel 5"),
+    ]
+    source_ids = []
+    for channel_id, channel_name in channels:
+        conn.execute(
+            """INSERT INTO content_sources
+               (source_id, source_type, name, video_count, last_refresh, fetch_method, added_at)
+               VALUES (?, ?, ?, ?, datetime('now'), ?, datetime('now'))""",
+            (channel_id, "channel", channel_name, 4, "api"),
+        )
+        source_ids.append(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
 
-    # Add 20 videos
+    # Add 20 videos (4 per channel) - algorithm allows max 3 per channel in results
     for i in range(20):
+        channel_idx = i // 4  # 0-3 → channel 0, 4-7 → channel 1, etc.
+        channel_id, channel_name = channels[channel_idx]
+        source_id = source_ids[channel_idx]
         conn.execute(
             """INSERT INTO videos
                (video_id, title, content_source_id, youtube_channel_id, youtube_channel_name,
@@ -758,8 +770,8 @@ def setup_videos_for_grid(test_db_file):
                 f"video_{i}",
                 f"Test Video {i}",
                 source_id,
-                "UCtest123",
-                "Test Channel",
+                channel_id,
+                channel_name,
                 f"https://i.ytimg.com/vi/video_{i}/default.jpg",
                 300 + (i * 10),  # Varying durations: 300, 310, 320, ...
             ),
@@ -770,6 +782,8 @@ def setup_videos_for_grid(test_db_file):
 
     yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
     for i in [0, 1, 2, 3, 4]:
+        channel_idx = i // 4  # Videos 0-3 → channel 1, video 4 → channel 2
+        channel_name = channels[channel_idx][1]
         conn.execute(
             """INSERT INTO watch_history
                (video_id, video_title, channel_name, watched_at, duration_watched_seconds, completed, manual_play, grace_play)
@@ -777,7 +791,7 @@ def setup_videos_for_grid(test_db_file):
             (
                 f"video_{i}",
                 f"Test Video {i}",
-                "Test Channel",
+                channel_name,
                 f"{yesterday}T12:00:00Z",
                 300,
                 1,
