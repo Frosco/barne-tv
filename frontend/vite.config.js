@@ -11,6 +11,13 @@ export default {
       input: {
         child: './src/child.js',
         admin: './src/admin.js',
+        'shared/version': './src/shared/version.js',
+      },
+      output: {
+        // Use stable filenames without content hashes for template compatibility
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name][extname]',
       },
     },
   },
