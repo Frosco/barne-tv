@@ -115,13 +115,15 @@ def admin_login_page(request: Request):
     Returns:
         HTML response with login template
     """
+    from backend.config import DEBUG
+
     templates = request.app.state.templates
     return templates.TemplateResponse(
         "admin/login.html",
         {
             "request": request,
             "interface": "admin",
-            "dev_mode": True,  # TODO: Use config.DEBUG in production
+            "dev_mode": DEBUG,
         },
     )
 
@@ -282,6 +284,8 @@ def admin_channels_page(request: Request, response: Response):
     Returns:
         HTML response with channels template
     """
+    from backend.config import DEBUG
+
     # TIER 2 Rule 10: Require authentication
     require_auth(request)
 
@@ -291,7 +295,7 @@ def admin_channels_page(request: Request, response: Response):
         {
             "request": request,
             "interface": "admin",
-            "dev_mode": True,  # TODO: Use config.DEBUG in production
+            "dev_mode": DEBUG,
         },
     )
 
@@ -1255,6 +1259,8 @@ def admin_history_page(request: Request, response: Response):
     Returns:
         HTML response with history template
     """
+    from backend.config import DEBUG
+
     # TIER 2 Rule 10: Require authentication
     require_auth(request)
 
@@ -1264,7 +1270,7 @@ def admin_history_page(request: Request, response: Response):
         {
             "request": request,
             "interface": "admin",
-            "dev_mode": True,  # TODO: Use config.DEBUG in production
+            "dev_mode": DEBUG,
         },
     )
 
@@ -1289,6 +1295,8 @@ def admin_settings_page(request: Request, response: Response):
     Returns:
         HTML response with settings template
     """
+    from backend.config import DEBUG
+
     # TIER 2 Rule 10: Require authentication
     require_auth(request)
 
@@ -1298,7 +1306,7 @@ def admin_settings_page(request: Request, response: Response):
         {
             "request": request,
             "interface": "admin",
-            "dev_mode": True,  # TODO: Use config.DEBUG in production
+            "dev_mode": DEBUG,
         },
     )
 
