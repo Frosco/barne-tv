@@ -22,8 +22,11 @@
     Templates will load the built JavaScript bundles instead of the dev server.
   #}
   {% if dev_mode %}
-  {# Development: Vite dev server with HMR #}
+  {# Development: Vite dev server with HMR (CSS injected via JS) #}
   <script type="module" src="http://localhost:5173/@vite/client"></script>
+  {% else %}
+  {# Production: Load built CSS #}
+  <link rel="stylesheet" href="/static/assets/main.css">
   {% endif %}
 </head>
 <body>
